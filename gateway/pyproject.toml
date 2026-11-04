@@ -1,0 +1,10 @@
+[project]
+name = "bhm-gateway"
+version = "0.1.0"
+description = "Daly BMS (RS485) to MQTT/TLS gateway for the STM32MP135"
+requires-python = ">=3.11"
+dependencies = ["pyserial==3.5", "paho-mqtt==2.1.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

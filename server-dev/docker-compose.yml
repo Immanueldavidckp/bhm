@@ -1,0 +1,20 @@
+# Local TLS broker for testing the gateway (same setup can be used on Oracle Cloud).
+#   ./gen_certs.sh localhost bhm-gw-lab1 bhm-ingest
+#   ./add_user.sh bhm-gw-lab1 ; ./add_user.sh bhm-ingest
+#   docker compose up -d
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    # run as the owner of ./certs so the 0600 server.key stays private
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "8883:8883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ./certs:/mosquitto/certs:ro
+      - mosquitto-data:/mosquitto/data
+    restart: unless-stopped
+volumes:
+  mosquitto-data:

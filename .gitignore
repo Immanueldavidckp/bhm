@@ -1,0 +1,18 @@
+# secrets: never commit keys, certificates or password files
+*.key
+*.pem
+*.srl
+server-dev/certs/
+server-dev/mosquitto/passwd
+mqtt_password
+
+# build / runtime
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+gateway/build/
+gateway/dist/
+*.db
+*.db-wal
+*.db-shm

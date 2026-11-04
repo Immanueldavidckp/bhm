@@ -1,0 +1,42 @@
+# BHM gateway config. Install as /etc/bhm/bhm.toml (deploy/install.sh does this).
+
+[gateway]
+site_id = "lab1"                 # becomes part of every topic: bhm/<site_id>/...
+poll_interval_s = 10             # how often each BMS is read
+buffer_path = "/var/lib/bhm/buffer.db"   # store-and-forward queue (survives outages/reboots)
+buffer_max_rows = 200000         # ~ 23 days of 3 packs @ 10 s; oldest dropped beyond this
+log_level = "INFO"
+
+[mqtt]
+host = "mqtt.example.com"        # Oracle Cloud broker hostname (must match its TLS certificate)
+port = 8883                      # TLS only - there is no plaintext mode
+client_id = "bhm-gw-lab1"
+topic_prefix = "bhm"
+qos = 1
+keepalive_s = 60
+ca_file = "/etc/bhm/certs/ca.crt"          # CA that signed the broker cert ("" = system CAs, e.g. Let's Encrypt)
+cert_file = "/etc/bhm/certs/client.crt"    # client certificate (mutual TLS)
+key_file = "${CREDENTIALS_DIRECTORY}/client.key"        # provided by systemd LoadCredential
+username = "bhm-gw-lab1"
+password_file = "${CREDENTIALS_DIRECTORY}/mqtt_password" # provided by systemd LoadCredential
+
+# One [[battery]] per Daly BMS. Use /dev/serial/by-path/... (stable per USB socket)
+# or /dev/serial/by-id/... rather than /dev/ttyUSB0, whose number can change on reboot.
+# Daly RS485 has no usable bus address on stock firmware: give each BMS its own adapter.
+
+[[battery]]
+id = "kit12v"
+nominal_voltage = 12.8           # 4S LiFePO4
+port = "/dev/ttyUSB0"
+address = 0x40                   # 0x40 = RS485 port, 0x80 = UART port ("probe" finds it)
+current_sign = 1                 # set -1 if charging shows as negative current
+
+[[battery]]
+id = "kit36v"
+nominal_voltage = 38.4           # 12S LiFePO4
+port = "/dev/ttyUSB1"
+
+[[battery]]
+id = "kit48v"
+nominal_voltage = 51.2           # 16S LiFePO4
+port = "/dev/ttyUSB2"

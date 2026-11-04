@@ -1,0 +1,8 @@
+# Each gateway may only write under its own site. %u = MQTT username.
+# Username convention: bhm-gw-<site>  ->  topics bhm/<site>/#
+user bhm-gw-lab1
+topic write bhm/lab1/#
+
+# Backend ingester (writes to the database) reads everything.
+user bhm-ingest
+topic read bhm/#
