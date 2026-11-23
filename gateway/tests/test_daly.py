@@ -83,3 +83,14 @@ def test_probe_against_simulator(tmp_path):
     finally:
         sim.terminate()
         sim.wait()
+
+
+def test_clock_ok(tmp_path):
+    from bhm_gateway.service import clock_floor, clock_ok
+    missing = str(tmp_path / "nope")
+    assert clock_ok(floor=time.time() - 10, flag=missing)          # clock past install time
+    assert not clock_ok(floor=time.time() + 3600, flag=missing)    # clock before install time
+    flag = tmp_path / "synchronized"
+    flag.touch()
+    assert clock_ok(floor=time.time() + 3600, flag=str(flag))      # NTP says it's synced
+    assert clock_floor() <= time.time()

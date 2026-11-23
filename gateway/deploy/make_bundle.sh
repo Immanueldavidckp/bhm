@@ -14,6 +14,6 @@ fi
 rm -rf "$OUT"/lib/*.dist-info/RECORD "$OUT"/lib/bin "$OUT"/lib/.lock
 cp -r bhm_gateway "$OUT/lib/"
 find "$OUT" -name __pycache__ -prune -exec rm -rf {} +
-cp deploy/install.sh deploy/bhm-gateway.service config/bhm.example.toml "$OUT/"
+cp deploy/install.sh deploy/bhm-gateway.service deploy/bhm-sim.service config/bhm.example.toml "$OUT/"
 tar -C build -czf "dist/bhm-gateway-$VER.tar.gz" bhm-gateway
 echo "dist/bhm-gateway-$VER.tar.gz ($(du -h "dist/bhm-gateway-$VER.tar.gz" | cut -f1))"

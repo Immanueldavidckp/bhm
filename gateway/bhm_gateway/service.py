@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import signal
 import threading
 import time
@@ -20,6 +21,25 @@ log = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 HEALTH_INTERVAL_S = 60
+NTP_SYNCED_FLAG = "/run/systemd/timesync/synchronized"   # created by systemd-timesyncd
+
+
+def clock_floor() -> float:
+    """The clock cannot be earlier than when this code was installed."""
+    pkg = os.path.dirname(__file__)
+    return max(os.path.getmtime(os.path.join(pkg, f)) for f in os.listdir(pkg)
+               if f.endswith(".py"))
+
+
+def clock_ok(floor: float | None = None, flag: str = NTP_SYNCED_FLAG) -> bool:
+    """True once NTP has synced, or the clock is at least past the install time.
+
+    Boards without an RTC battery boot with a clock months or years off; readings stamped
+    then are wrong forever and TLS rejects the broker certificate, so wait instead.
+    """
+    if os.path.exists(flag):
+        return True
+    return time.time() >= (clock_floor() if floor is None else floor)
 
 
 class Topics:
@@ -141,16 +161,30 @@ class Gateway:
                           for k, v in self._online.items()},
         }
 
+    def wait_for_clock(self) -> None:
+        if clock_ok():
+            return
+        log.warning("system clock is wrong (%s, before this software was installed): waiting "
+                    "for NTP before reading batteries. Check network and systemd-timesyncd.",
+                    _now())
+        waited = 0
+        while not self.stop_event.wait(5):
+            waited += 5
+            if clock_ok():
+                log.info("clock set by NTP (%s) after %d s", _now(), waited)
+                return
+            if waited % 300 == 0:
+                log.warning("still waiting for a correct clock (%s)", _now())
+
     def run(self) -> None:
-        if time.gmtime().tm_year < 2025:
-            log.warning("system clock looks unset (%s): TLS certificate checks will fail and "
-                        "timestamps will be wrong. Enable NTP (timedatectl set-ntp true).", _now())
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, lambda *_: self.stop_event.set())
+        self.wait_for_clock()
+        if self.stop_event.is_set():
+            return
         log.info("bhm-gateway %s starting: site=%s batteries=%s broker=%s:%d buffered=%d",
                  __version__, self.cfg.gateway.site_id, [b.id for b in self.cfg.batteries],
                  self.cfg.mqtt.host, self.cfg.mqtt.port, len(self.buffer))
-
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            signal.signal(sig, lambda *_: self.stop_event.set())
 
         self.publisher.start()
         by_port: dict[str, list[BatteryConfig]] = defaultdict(list)

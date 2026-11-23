@@ -16,3 +16,5 @@ gateway/dist/
 *.db
 *.db-wal
 *.db-shm
+server-dev/.env
+server-dev/secrets/

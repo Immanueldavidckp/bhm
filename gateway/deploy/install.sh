@@ -24,11 +24,19 @@ chmod 0600 /etc/bhm/mqtt_password
 
 echo "-> systemd unit"
 install -m 0644 "$HERE/bhm-gateway.service" /etc/systemd/system/bhm-gateway.service
+install -m 0644 "$HERE/bhm-sim.service" /etc/systemd/system/bhm-sim.service   # not enabled
 systemctl daemon-reload
 systemctl enable bhm-gateway.service >/dev/null
 
-# TLS certificate validation needs a correct clock.
-timedatectl set-ntp true 2>/dev/null || true
+# TLS certificate validation and reading timestamps need a correct clock, and boards without
+# an RTC battery boot with a wrong one. Use systemd-timesyncd. Not `timedatectl set-ntp true`:
+# on OpenSTLinux that enables ntpd (which never synced on our board) and DISABLES timesyncd.
+if [ -f /usr/lib/systemd/system/systemd-timesyncd.service ]; then
+  systemctl disable --now ntpd.service chronyd.service 2>/dev/null || true
+  systemctl enable --now systemd-timesyncd.service
+else
+  timedatectl set-ntp true 2>/dev/null || true
+fi
 
 missing=""
 grep -q 'example.com' /etc/bhm/bhm.toml && missing="$missing\n  - edit /etc/bhm/bhm.toml (mqtt.host, site_id, battery ports)"
@@ -43,3 +51,4 @@ else
   systemctl restart bhm-gateway.service
   echo "started. logs: journalctl -u bhm-gateway -f"
 fi
+echo "no batteries yet? systemctl start bhm-sim and point the ports at /run/bhm-sim/<name>"

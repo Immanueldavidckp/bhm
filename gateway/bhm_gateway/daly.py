@@ -205,8 +205,9 @@ class DalyBMS:
     def open(self):
         import serial  # pyserial
         if self._ser is None or not self._ser.is_open:
-            self._ser = serial.Serial(self.port, self.baudrate, bytesize=8, parity="N",
-                                      stopbits=1, timeout=0.05)
+            # a device path, or socket://host:port for a simulator on another machine
+            self._ser = serial.serial_for_url(self.port, self.baudrate, bytesize=8,
+                                              parity="N", stopbits=1, timeout=0.05)
         return self
 
     def close(self):

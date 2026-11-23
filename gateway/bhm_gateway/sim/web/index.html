@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BHM Simulator 3D</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: rgba(18, 23, 31, 0.92); --line: #2a3340; --text: #e6edf3;
+    --muted: #8b98a8; --accent: #4fc3f7; --ok: #66bb6a; --warn: #ffb74d; --bad: #ef5350;
+    --chg: #5cf28a; --dsg: #ffab40;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; }
+  .mono { font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+  #topbar { position: fixed; top: 12px; left: 12px; right: 372px; display: flex; gap: 10px;
+    align-items: center; flex-wrap: wrap; pointer-events: none; }
+  #topbar > * { pointer-events: auto; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; display: flex; gap: 8px; align-items: center; }
+  .title { font-weight: 650; letter-spacing: .2px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+  button, select, input { font: inherit; color: var(--text); background: #1c2430;
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.sel { background: #12384a; border-color: var(--accent); }
+  button.danger:hover { border-color: var(--bad); color: #ffcdd2; }
+  input[type=number] { width: 70px; }
+
+  #panel { position: fixed; top: 12px; right: 12px; bottom: 12px; width: 348px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; overflow-y: auto; }
+  #panel h2 { margin: 0; font-size: 18px; }
+  #panel h3 { margin: 16px 0 6px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--muted); font-weight: 600; }
+  .sub { color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  .stat { background: #151c26; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; }
+  .stat .k { font-size: 11px; color: var(--muted); }
+  .stat .v { font-size: 16px; font-weight: 600; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
+  .tabs { display: flex; gap: 6px; margin-top: 8px; }
+  .tabs button { flex: 1; }
+  .mode { display: grid; grid-template-columns: 1fr 0.7fr 1fr; gap: 6px; }
+  .mbtn { padding: 10px 6px; font-weight: 650; font-size: 14px; border-radius: 8px; }
+  .mbtn.on { background: #263238; border-color: #cfd8dc; }
+  .mbtn.chg.on { background: #1b5e20; border-color: var(--chg); color: #eafff0; box-shadow: 0 0 12px rgba(92,242,138,.35); }
+  .mbtn.dsg.on { background: #7a3d00; border-color: var(--dsg); color: #fff3e0; box-shadow: 0 0 12px rgba(255,171,64,.35); }
+  .sl { margin-top: 10px; background: #151c26; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; }
+  .slh, .slf { display: flex; justify-content: space-between; gap: 8px; }
+  .slh b { font-size: 16px; }
+  .slf { font-size: 11px; color: var(--muted); }
+  .sl input { width: 100%; margin: 6px 0 2px; }
+  .sl.chg input { accent-color: var(--chg); }
+  .sl.dsg input { accent-color: var(--dsg); }
+  .sl.over .slh b { color: var(--bad); }
+  #cellbars { display: flex; align-items: flex-end; gap: 2px; height: 70px;
+    background: #151c26; border: 1px solid var(--line); border-radius: 7px; padding: 6px; }
+  #cellbars div { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; cursor: pointer;
+    position: relative; }
+  #cellbars div.sel { outline: 2px solid #fff; outline-offset: 1px; }
+  #cellbars div.bal::after { content: ""; position: absolute; top: -6px; left: 50%;
+    width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--warn); }
+  canvas.spark { width: 100%; height: 78px; background: #151c26; border: 1px solid var(--line);
+    border-radius: 7px; display: block; }
+  .faults { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #3b1d1d;
+    color: #ffcdd2; border: 1px solid #6d2b2b; }
+  .tag.ok { background: #16301d; color: #c8e6c9; border-color: #2e5e37; }
+  #msg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 18px 22px; max-width: 460px; display: none; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 14px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+
+  #legend { position: fixed; left: 12px; bottom: 12px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 280px; }
+  #legend .bar { height: 10px; border-radius: 3px; margin: 6px 0 2px; }
+  #legend .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  #legend .keys { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; color: var(--muted); }
+  #legend .keys span::before { content: ""; display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 4px; background: var(--c); vertical-align: 0; }
+
+  .plabel { background: rgba(13, 17, 23, .86); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 9px; min-width: 150px; cursor: pointer; pointer-events: auto; user-select: none; }
+  .plabel.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .plabel.fault { border-color: var(--bad); }
+  .plabel .n { font-weight: 650; display: flex; justify-content: space-between; gap: 8px; }
+  .plabel .socbar { height: 5px; background: #222b36; border-radius: 3px; margin: 4px 0 3px; overflow: hidden; }
+  .plabel .socbar i { display: block; height: 100%; background: var(--ok); }
+  .plabel .f { color: #ff8a80; font-size: 11px; }
+  .blabel { font-size: 9px; font-weight: 700; color: #cfd8dc; letter-spacing: .5px;
+    text-shadow: 0 1px 2px #000; pointer-events: none; }
+  .dlabel { font-size: 11px; color: var(--muted); background: rgba(13,17,23,.75);
+    padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); white-space: nowrap; }
+
+  @media (max-width: 820px) {
+    #panel { top: auto; left: 8px; right: 8px; width: auto; height: 46%; }
+    #topbar { right: 12px; }
+    #legend { display: none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="topbar">
+  <div class="chip"><span class="title">BHM Simulator 3D</span></div>
+  <div class="chip"><span id="conn" class="dot"></span><span id="connText" class="sub">connecting…</span></div>
+  <div class="chip mono" id="simtime">t = –</div>
+  <div class="chip">speed
+    <span id="speeds"></span>
+  </div>
+  <div class="chip">
+    <button id="btnRotate">Auto-rotate</button>
+    <button id="btnView">Reset view</button>
+  </div>
+</div>
+
+<div id="panel">
+  <div id="pTitle"><h2>–</h2><div class="sub">Click a pack or a cell</div></div>
+  <div class="grid" id="pStats"></div>
+  <div class="faults" id="pFaults"></div>
+
+  <h3>Charge / discharge</h3>
+  <div class="mode">
+    <button id="mChg" class="mbtn chg" title="charger on (CC at the set current, then CV)">⚡ Charge</button>
+    <button id="mOff" class="mbtn" title="nothing connected">Off</button>
+    <button id="mDis" class="mbtn dsg" title="load on at the set current">Discharge</button>
+  </div>
+  <div class="sl chg">
+    <div class="slh"><span>Charging current</span><span class="mono"><b id="vChg">–</b> A</span></div>
+    <input type="range" id="sChg" min="0" max="100" step="1">
+    <div class="slf"><span id="cChg"></span><span>BMS alarm at <b id="lChg">–</b> A</span></div>
+  </div>
+  <div class="sl dsg">
+    <div class="slh"><span>Discharge current</span><span class="mono"><b id="vDis">–</b> A</span></div>
+    <input type="range" id="sDis" min="0" max="150" step="1">
+    <div class="slf"><span id="cDis"></span><span>BMS alarm at <b id="lDis">–</b> A</span></div>
+  </div>
+  <div class="row sub" id="modeNote"></div>
+  <div class="row">
+    Auto
+    <select id="profile">
+      <option value="cycle">cycle (charge ↔ discharge)</option><option value="drive">drive (random loads)</option>
+    </select>
+    <button id="btnProfile">Run</button>
+  </div>
+  <div class="row">
+    SOC <input id="inSoc" type="number" min="0" max="100" value="50"> % <button id="btnSoc">Set</button>
+    ambient <input id="inAmb" type="number" value="27"> °C <button id="btnAmb">Set</button>
+  </div>
+
+  <h3>Cell voltages <span id="cellInfo" class="mono" style="text-transform:none;letter-spacing:0;color:var(--text)"></span></h3>
+  <div id="cellbars"></div>
+
+  <h3>SOC: BMS (solid) vs true (dashed)</h3>
+  <canvas id="sparkSoc" class="spark"></canvas>
+  <h3>Current (A): + charge, − discharge</h3>
+  <canvas id="sparkCur" class="spark"></canvas>
+
+  <h3>Inject faults</h3>
+  <div class="row">
+    <button class="danger" data-f="short">Short circuit</button>
+    <button class="danger" data-cellf="weak" title="selected cell at 60 % capacity">Weak cell</button>
+    <button class="danger" data-cellf="open_wire" title="selected cell's sense wire">Open wire</button>
+    <button class="danger" data-cellf="leak" title="selected cell self-discharges 5 %/day">Leaky cell</button>
+    <button class="danger" data-f="ntc_open:1">NTC 1 open</button>
+    <button class="danger" id="btnHot">Over-temp (62 °C amb)</button>
+    <button class="danger" id="btnHeavy">Heavy load</button>
+  </div>
+  <div class="row">
+    <button class="danger" id="btnOffline">BMS offline</button>
+    <button class="danger" id="btnFlaky">Flaky RS485</button>
+    <button id="btnClear">Clear pack</button>
+    <button id="btnClearAll">Clear all</button>
+  </div>
+  <div class="sub" style="margin-top:6px">Cell faults act on the selected cell (click one in the 3D view).</div>
+</div>
+
+<div id="legend">
+  <div>Cell colour = voltage, fill height = cell SOC</div>
+  <div class="bar" id="ramp"></div>
+  <div class="ticks mono"><span>2.5</span><span>3.0</span><span>3.2</span><span>3.4</span><span>3.65 V</span></div>
+  <div class="keys">
+    <span style="--c:var(--chg)">charge current</span>
+    <span style="--c:var(--dsg)">discharge current</span>
+    <span style="--c:#ffd54f">balancing</span>
+    <span style="--c:#4fc3f7">RS485 request</span>
+    <span style="--c:#e0e0e0">BMS reply</span>
+  </div>
+</div>
+
+<div id="msg"></div>
+<div id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// ---------------------------------------------------------------- constants
+const CELL = { t: 0.056, h: 0.205, w: 0.17 };   // prismatic 100 Ah LiFePO4, metres
+const PITCH_X = CELL.t + 0.007, PITCH_Z = CELL.w + 0.03;
+const TOP = CELL.h + 0.004;                      // terminal / busbar height
+const POLL_MS = 500;
+const V_STOPS = [[2.50, '#e53935'], [2.90, '#ff7043'], [3.10, '#ffca28'], [3.25, '#66bb6a'],
+                 [3.38, '#26c6da'], [3.50, '#5c6bc0'], [3.65, '#ab47bc']];
+const C_CHG = new THREE.Color('#5cf28a'), C_DSG = new THREE.Color('#ffab40');
+const C_REQ = new THREE.Color('#4fc3f7'), C_REP = new THREE.Color('#e0e0e0');
+
+const _vc = V_STOPS.map(([v, c]) => [v, new THREE.Color(c)]);
+function voltColor(v, out = new THREE.Color()) {
+  if (!v) return out.set('#4a4f57');
+  if (v <= _vc[0][0]) return out.copy(_vc[0][1]);
+  for (let i = 1; i < _vc.length; i++) {
+    if (v <= _vc[i][0]) {
+      const [v0, c0] = _vc[i - 1], [v1, c1] = _vc[i];
+      return out.copy(c0).lerp(c1, (v - v0) / (v1 - v0));
+    }
+  }
+  return out.copy(_vc[_vc.length - 1][1]);
+}
+function tempColor(t, out = new THREE.Color()) {
+  if (t == null || t <= -39) return out.set('#9e9e9e');
+  const k = THREE.MathUtils.clamp((t - 20) / 40, 0, 1);
+  return out.setHSL(0.58 - 0.58 * k, 0.85, 0.55);
+}
+document.getElementById('ramp').style.background = 'linear-gradient(90deg,' +
+  V_STOPS.map(([v, c]) => `${c} ${((v - 2.5) / 1.15 * 100).toFixed(1)}%`).join(',') + ')';
+
+// ---------------------------------------------------------------- renderer / scene
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+stage.appendChild(renderer.domElement);
+const labels = new CSS2DRenderer();
+labels.domElement.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none';
+stage.appendChild(labels.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0d1117');
+scene.fog = new THREE.Fog('#0d1117', 4, 9);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.02, 50);
+const HOME = { pos: new THREE.Vector3(0.15, 1.25, 2.05), target: new THREE.Vector3(0, 0.08, 0.05) };
+// #cam=x,y,z,tx,ty,tz pins the camera (handy for screenshots)
+const CAM = (location.hash.match(/cam=([-\d.,]+)/) || [])[1]?.split(',').map(Number);
+camera.position.copy(HOME.pos);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true;
+controls.minDistance = 0.4; controls.maxDistance = 6;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.autoRotateSpeed = 0.6;
+
+scene.add(new THREE.HemisphereLight('#cfe3ff', '#1a1410', 0.55));
+const sun = new THREE.DirectionalLight('#ffffff', 2.2);
+sun.position.set(1.6, 3.2, 2.0);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2, near: 0.5, far: 8 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const rim = new THREE.DirectionalLight('#7fb2ff', 0.7);
+rim.position.set(-2.5, 1.5, -2);
+scene.add(rim);
+
+// workbench
+const bench = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.05, 2.0),
+  new THREE.MeshStandardMaterial({ color: '#2a2f36', roughness: 0.85, metalness: 0.05 }));
+bench.position.y = -0.025; bench.receiveShadow = true; scene.add(bench);
+const mat = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.8),
+  new THREE.MeshStandardMaterial({ color: '#1f3a2c', roughness: 0.95 }));
+mat.rotation.x = -Math.PI / 2; mat.position.y = 0.0005; mat.receiveShadow = true; scene.add(mat);
+const grid = new THREE.GridHelper(3.4, 34, '#2f5a45', '#27493a');
+grid.position.y = 0.001; grid.material.transparent = true; grid.material.opacity = 0.35; scene.add(grid);
+
+// shared geometry / materials
+const G = {
+  shell: new RoundedBoxGeometry(CELL.t, CELL.h, CELL.w, 2, 0.005).translate(0, CELL.h / 2, 0),
+  core: new THREE.BoxGeometry(CELL.t * 0.8, 1, CELL.w * 0.86).translate(0, 0.5, 0),
+  cap: new THREE.BoxGeometry(CELL.t * 0.98, 0.006, CELL.w * 0.98),
+  term: new THREE.CylinderGeometry(0.009, 0.009, 0.012, 16),
+  ring: new THREE.TorusGeometry(0.02, 0.004, 8, 24).rotateX(Math.PI / 2),
+  ntc: new THREE.CylinderGeometry(0.008, 0.008, 0.004, 16),
+  spark: new THREE.SphereGeometry(1, 10, 8),
+};
+const M = {
+  shell: new THREE.MeshPhysicalMaterial({ color: '#2f6fc0', roughness: 0.25, metalness: 0.0,
+    transparent: true, opacity: 0.22, depthWrite: false, clearcoat: 1 }),
+  cap: new THREE.MeshStandardMaterial({ color: '#1b2a3d', roughness: 0.6 }),
+  pos: new THREE.MeshStandardMaterial({ color: '#c62828', roughness: 0.4, metalness: 0.6 }),
+  neg: new THREE.MeshStandardMaterial({ color: '#90a4ae', roughness: 0.3, metalness: 0.9 }),
+  copper: new THREE.MeshStandardMaterial({ color: '#c77d43', roughness: 0.35, metalness: 0.85 }),
+  cableRed: new THREE.MeshStandardMaterial({ color: '#b71c1c', roughness: 0.5 }),
+  cableBlk: new THREE.MeshStandardMaterial({ color: '#202225', roughness: 0.55 }),
+  tray: new THREE.MeshStandardMaterial({ color: '#30353d', roughness: 0.7, metalness: 0.3 }),
+  bms: new THREE.MeshStandardMaterial({ color: '#16181b', roughness: 0.45, metalness: 0.4 }),
+  fin: new THREE.MeshStandardMaterial({ color: '#7d8590', roughness: 0.35, metalness: 0.9 }),
+  pcb: new THREE.MeshStandardMaterial({ color: '#0f5132', roughness: 0.6 }),
+  chip: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.4 }),
+};
+
+function bar(a, b, width, height, material) {
+  const len = a.distanceTo(b);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(width, height, len + width * 0.6), material);
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.lookAt(b);
+  m.castShadow = true;
+  return m;
+}
+function tube(points, radius, material) {
+  const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 80, radius, 10, false), material);
+  m.castShadow = true;
+  return { mesh: m, curve };
+}
+function led(color, r = 0.006) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10),
+    new THREE.MeshStandardMaterial({ color: '#111', emissive: color, emissiveIntensity: 0 }));
+  return m;
+}
+function label(html, cls) {
+  const el = document.createElement('div');
+  el.className = cls; el.innerHTML = html;
+  return { el, obj: new CSS2DObject(el) };
+}
+// arc-length sampled path for particles
+class Path {
+  constructor(points) {
+    this.p = points; this.cum = [0];
+    for (let i = 1; i < points.length; i++) this.cum.push(this.cum[i - 1] + points[i].distanceTo(points[i - 1]));
+    this.len = this.cum[this.cum.length - 1];
+  }
+  at(u, out) {
+    const s = THREE.MathUtils.clamp(u, 0, 1) * this.len, c = this.cum;
+    let lo = 0, hi = c.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (c[mid] < s) lo = mid; else hi = mid; }
+    const k = (s - c[lo]) / Math.max(1e-9, c[hi] - c[lo]);
+    return out.copy(this.p[lo]).lerp(this.p[hi], k);
+  }
+}
+function densify(pts, step = 0.01) {      // polyline of straight segments -> many points
+  const out = [pts[0].clone()];
+  for (let i = 1; i < pts.length; i++) {
+    const n = Math.max(1, Math.ceil(pts[i].distanceTo(pts[i - 1]) / step));
+    for (let j = 1; j <= n; j++) out.push(pts[i - 1].clone().lerp(pts[i], j / n));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- pack model
+const world = new THREE.Group(); scene.add(world);
+let packs = new Map();     // name -> PackView
+let gateway = null;
+let selected = { pack: null, cell: null };
+const pickables = [];
+
+function layoutOf(n) {
+  const perRow = n <= 6 ? n : Math.ceil(n / 2);
+  const rows = Math.ceil(n / perRow);
+  return { perRow, rows, X: perRow * PITCH_X, Z: rows * PITCH_Z };
+}
+
+class PackView {
+  constructor(st, x0) {
+    this.name = st.name; this.n = st.cells;
+    const L = this.L = layoutOf(this.n);
+    const g = this.group = new THREE.Group();
+    g.position.x = x0; world.add(g);
+
+    // tray (tinted by temperature)
+    this.trayMat = M.tray.clone(); this.trayMat.emissive = new THREE.Color('#000');
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(L.X + 0.03, 0.018, L.Z + 0.01), this.trayMat);
+    tray.position.y = 0.009; tray.receiveShadow = true; tray.castShadow = true; g.add(tray);
+    // end plates + strap, like a real compressed prismatic pack
+    for (const sx of [-1, 1]) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.008, CELL.h * 0.9, L.Z - 0.01), M.fin);
+      p.position.set(sx * (L.X / 2 + 0.006), 0.018 + CELL.h * 0.45, 0); p.castShadow = true; g.add(p);
+    }
+
+    // cells, snake order: front row left->right, back row right->left
+    this.cells = []; this.term = [];
+    const zRow = r => L.rows === 1 ? 0 : (r === 0 ? PITCH_Z / 2 : -PITCH_Z / 2);
+    for (let k = 0; k < this.n; k++) {
+      const r = Math.floor(k / L.perRow), j = k % L.perRow;
+      const col = r === 0 ? j : L.perRow - 1 - j;
+      const x = -L.X / 2 + (col + 0.5) * PITCH_X, z = zRow(r);
+      // which z side the + terminal is on, chosen so each busbar joins neighbours
+      const s = r === 0 ? (((L.perRow - 1 - j) % 2 === 0) ? -1 : 1) : ((j % 2 === 0) ? -1 : 1);
+      const c = new THREE.Group(); c.position.set(x, 0.018, z); g.add(c);
+      const shell = new THREE.Mesh(G.shell, M.shell); shell.renderOrder = 2;
+      shell.userData = { pack: this.name, cell: k }; pickables.push(shell);
+      const coreMat = new THREE.MeshStandardMaterial({ color: '#66bb6a', roughness: 0.35,
+        emissive: '#66bb6a', emissiveIntensity: 0.35 });
+      const core = new THREE.Mesh(G.core, coreMat); core.scale.y = CELL.h * 0.5; core.castShadow = true;
+      const cap = new THREE.Mesh(G.cap, M.cap); cap.position.y = CELL.h - 0.003;
+      const tp = new THREE.Mesh(G.term, M.pos); tp.position.set(0, CELL.h + 0.004, s * CELL.w * 0.3);
+      const tn = new THREE.Mesh(G.term, M.neg); tn.position.set(0, CELL.h + 0.004, -s * CELL.w * 0.3);
+      const ring = new THREE.Mesh(G.ring, new THREE.MeshBasicMaterial({ color: '#ffd54f', transparent: true }));
+      ring.position.y = CELL.h + 0.02; ring.visible = false;
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(G.shell),
+        new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.0 }));
+      c.add(shell, core, cap, tp, tn, ring, outline);
+      this.cells.push({ group: c, core, coreMat, ring, outline, shell,
+        disp: { h: null, col: new THREE.Color('#66bb6a') } });
+      const w = p => new THREE.Vector3(x, 0.018 + TOP, z + p);
+      this.term.push({ pos: w(s * CELL.w * 0.3), neg: w(-s * CELL.w * 0.3) });
+    }
+    // series busbars
+    for (let k = 0; k + 1 < this.n; k++) g.add(bar(this.term[k].pos, this.term[k + 1].neg, 0.022, 0.003, M.copper));
+
+    // NTC sensors on cell tops
+    this.ntc = [];
+    const ns = st.temps_c.length;
+    for (let i = 0; i < ns; i++) {
+      const k = Math.min(this.n - 1, Math.floor((i + 0.5) * this.n / ns));
+      const m = new THREE.Mesh(G.ntc, new THREE.MeshStandardMaterial({ color: '#222', emissive: '#4fc3f7', emissiveIntensity: 0.9 }));
+      m.position.copy(this.cells[k].group.position).setY(0.018 + CELL.h + 0.003);
+      g.add(m); this.ntc.push(m);
+    }
+
+    // BMS in front-left, on the negative side (Daly switches B- / P-)
+    const bz = L.Z / 2 + 0.13, bx = -L.X / 2 + 0.11;
+    const bms = new THREE.Group(); bms.position.set(bx, 0, bz); g.add(bms);
+    const body = new THREE.Mesh(new RoundedBoxGeometry(0.17, 0.034, 0.11, 2, 0.004), M.bms);
+    body.position.y = 0.017; body.castShadow = true; bms.add(body);
+    for (let i = 0; i < 9; i++) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.008, 0.1), M.fin);
+      f.position.set(-0.07 + i * 0.0175, 0.038, 0); bms.add(f);
+    }
+    this.ledChg = led('#66bb6a'); this.ledChg.position.set(0.05, 0.02, 0.056);
+    this.ledDsg = led('#66bb6a'); this.ledDsg.position.set(0.068, 0.02, 0.056);
+    this.beacon = led('#ff1744', 0.009); this.beacon.position.set(0.075, 0.045, 0.035);
+    bms.add(this.ledChg, this.ledDsg, this.beacon);
+    const bl = label('BMS', 'dlabel'); bl.obj.position.set(0, 0.08, 0); bms.add(bl.obj);
+    this.bmsPos = bms.position.clone();
+
+    // charger / load device in front
+    const dz = L.Z / 2 + 0.36;
+    this.devMat = new THREE.MeshStandardMaterial({ color: '#263238', roughness: 0.5, metalness: 0.4,
+      emissive: '#000', emissiveIntensity: 1 });
+    const dev = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.09, 0.12, 3, 0.01), this.devMat);
+    dev.position.set(0.04, 0.045, dz); dev.castShadow = true; g.add(dev);
+    // two push buttons on top: green = charge, orange = discharge (press the lit one again = off)
+    this.sw = {};
+    for (const [mode, dx, color] of [['charge', -0.045, '#00e676'], ['discharge', 0.045, '#ff9100']]) {
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.027, 0.006, 24), M.bms);
+      base.position.set(0.04 + dx, 0.093, dz + 0.01); g.add(base);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.014, 24),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1, roughness: 0.4 }));
+      m.position.set(0.04 + dx, 0.1, dz + 0.01); m.castShadow = true;
+      m.userData = { pack: this.name, mode }; pickables.push(m); g.add(m);
+      const t = label(mode === 'charge' ? 'CHG' : 'DSG', 'blabel');
+      t.obj.position.set(0.04 + dx, 0.125, dz + 0.04); g.add(t.obj);
+      this.sw[mode] = m;
+    }
+    const dl = label('', 'dlabel'); dl.obj.position.set(0.04, 0.14, dz); g.add(dl.obj); this.devLabel = dl.el;
+
+    // power cables: B- -> BMS, BMS P- -> device, B+ -> device
+    const left = -L.X / 2 - 0.06;
+    const bNeg = this.term[0].neg, bPos = this.term[this.n - 1].pos;
+    const bmsIn = new THREE.Vector3(bx - 0.06, 0.03, bz - 0.055);
+    const bmsOut = new THREE.Vector3(bx + 0.02, 0.03, bz + 0.055);
+    const devNeg = new THREE.Vector3(-0.04, 0.06, dz - 0.06);
+    const devPos = new THREE.Vector3(0.12, 0.06, dz - 0.06);
+    const c1 = tube([bNeg, bNeg.clone().setY(TOP + 0.05), new THREE.Vector3(left, 0.12, bNeg.z + 0.02),
+      new THREE.Vector3(left, 0.03, bz - 0.06), bmsIn], 0.006, M.cableBlk);
+    const c2 = tube([bmsOut, new THREE.Vector3(bx + 0.03, 0.02, (bz + dz) / 2), devNeg], 0.006, M.cableBlk);
+    const posRoute = L.rows === 1
+      ? [bPos, bPos.clone().setY(TOP + 0.06), new THREE.Vector3(L.X / 2 + 0.05, 0.08, bPos.z + 0.05),
+         new THREE.Vector3(L.X / 2 + 0.02, 0.02, dz - 0.08), devPos]
+      : [bPos, bPos.clone().setY(TOP + 0.06), new THREE.Vector3(left - 0.03, 0.16, bPos.z),
+         new THREE.Vector3(left - 0.04, 0.03, bz + 0.02), new THREE.Vector3(0.0, 0.02, dz - 0.09), devPos];
+    const c3 = tube(posRoute, 0.006, M.cableRed);
+    g.add(c1.mesh, c2.mesh, c3.mesh);
+
+    // current path: device(-) -> P- -> BMS -> B- -> cells (- to +) -> B+ -> device(+)
+    const pts = [];
+    pts.push(...c2.curve.getSpacedPoints(60).reverse());
+    pts.push(...c1.curve.getSpacedPoints(80).reverse());
+    const cellPts = [];
+    for (let k = 0; k < this.n; k++) cellPts.push(this.term[k].neg, this.term[k].pos);
+    pts.push(...densify(cellPts));
+    pts.push(...c3.curve.getSpacedPoints(100));
+    this.path = new Path(pts.map(p => p.clone()));
+    this.nPart = Math.round(this.path.len / 0.05);
+    this.partU = Array.from({ length: this.nPart }, (_, i) => i / this.nPart);
+    this.partMat = new THREE.MeshBasicMaterial({ color: C_DSG, toneMapped: false });
+    this.parts = new THREE.InstancedMesh(G.spark, this.partMat, this.nPart);
+    this.parts.frustumCulled = false; g.add(this.parts);
+
+    // floating label
+    const pl = label('', 'plabel');
+    pl.obj.position.set(0, 0.018 + CELL.h + 0.17, -L.Z / 2);
+    pl.el.addEventListener('click', () => select(this.name, null));
+    g.add(pl.obj); this.labelEl = pl.el;
+
+    this.rs485Anchor = new THREE.Vector3(bx - 0.08, 0.02, bz);   // local
+    this.hist = []; this.st = st; this.disp = { I: 0 };
+    this.lastReq = st.requests;
+  }
+
+  update(st) {
+    const first = this.st === null; this.st = st;
+    const faults = st.faults || [];
+    // label
+    const soc = st.bms_soc, I = st.current_a;
+    const tmax = Math.max(...(st.temps_c || []).filter(t => t != null && t > -39), -99);
+    this.labelEl.className = 'plabel' + (selected.pack === this.name ? ' sel' : '') + (faults.length ? ' fault' : '');
+    this.labelEl.innerHTML =
+      `<div class="n"><span>${st.name}</span><span class="mono">${st.voltage_v.toFixed(2)} V</span></div>` +
+      `<div class="socbar"><i style="width:${Math.max(0, Math.min(100, soc))}%;background:${soc < 15 ? 'var(--bad)' : soc < 35 ? 'var(--warn)' : 'var(--ok)'}"></i></div>` +
+      `<div class="mono sub">${soc.toFixed(1)}% · <span style="color:${I > 0.2 ? 'var(--chg)' : I < -0.2 ? 'var(--dsg)' : 'var(--muted)'}">${I >= 0 ? '+' : ''}${I.toFixed(1)} A</span> · ${tmax > -99 ? tmax.toFixed(0) + ' °C' : '–'}</div>` +
+      `<div class="sub">${st.phase}${st.comm && !st.comm.online ? ' · <b style="color:var(--bad)">OFFLINE</b>' : ''}</div>` +
+      (faults.length ? `<div class="f">⚠ ${faults.join(', ')}</div>` : '');
+    // device
+    const mode = I > 0.2 ? 'CHARGER' : I < -0.2 ? 'LOAD' : 'IDLE';
+    this.devLabel.textContent = `${mode}  ${Math.abs(I).toFixed(1)} A`;
+    this.devMat.emissive.set(mode === 'CHARGER' ? '#1b5e20' : mode === 'LOAD' ? '#7a3d00' : '#000000');
+    for (const [m, b] of Object.entries(this.sw)) {
+      const pressed = st.profile === m;
+      b.position.y = pressed ? 0.096 : 0.1;
+      b.material.emissiveIntensity = pressed ? 0.9 : 0.05;
+    }
+    // MOS LEDs
+    this.ledChg.material.emissive.set(st.chg_mos ? '#00e676' : '#ff1744'); this.ledChg.material.emissiveIntensity = 2.5;
+    this.ledDsg.material.emissive.set(st.dis_mos ? '#00e676' : '#ff1744'); this.ledDsg.material.emissiveIntensity = 2.5;
+    // NTCs
+    (st.temps_c || []).forEach((t, i) => this.ntc[i] && tempColor(t, this.ntc[i].material.emissive));
+    const heat = THREE.MathUtils.clamp((tmax - 35) / 30, 0, 1);
+    this.trayMat.emissive.setRGB(heat * 0.6, heat * 0.08, 0);
+    // RS485 traffic
+    const dreq = Math.max(0, (st.requests ?? 0) - (this.lastReq ?? 0));
+    this.lastReq = st.requests;
+    if (gateway && !first) for (let i = 0; i < Math.min(dreq, 10); i++)
+      gateway.send(this, i * POLL_MS / Math.min(dreq, 10) / 1000, st.comm?.online !== false);
+    if (gateway) gateway.setLink(this, st.comm?.online !== false, (st.comm?.drop || 0) + (st.comm?.corrupt || 0) > 0);
+    // history
+    this.hist.push({ t: st.sim_time_h, soc: st.bms_soc, tsoc: st.true_soc, I });
+    if (this.hist.length > 720) this.hist.shift();
+  }
+
+  animate(dt, time) {
+    const st = this.st; if (!st) return;
+    const col = new THREE.Color();
+    const bal = new Set(st.balancing || []);
+    for (let k = 0; k < this.n; k++) {
+      const c = this.cells[k], mv = st.cells_mv[k];
+      const csoc = st.cell_soc ? st.cell_soc[k] : st.true_soc;
+      const h = THREE.MathUtils.clamp(csoc / 100, 0.02, 1.02) * (CELL.h - 0.012);
+      voltColor(mv / 1000, col);
+      if (c.disp.h === null) { c.disp.h = h; c.disp.col.copy(col); }   // first frame: no ease-in
+      c.disp.h += (h - c.disp.h) * Math.min(1, dt * 4);
+      c.core.scale.y = Math.max(0.002, c.disp.h);
+      c.disp.col.lerp(col, Math.min(1, dt * 5));
+      c.coreMat.color.copy(c.disp.col);
+      c.coreMat.emissive.copy(c.disp.col);
+      let ei = 0.35;
+      if (!mv) ei = 0.15 + 0.35 * (Math.sin(time * 9) > 0 ? 1 : 0);     // open sense wire flicker
+      c.coreMat.emissiveIntensity = ei;
+      const b = bal.has(k + 1);
+      c.ring.visible = b;
+      if (b) { const p = 1 + 0.25 * Math.sin(time * 6 + k); c.ring.scale.set(p, 1, p); c.ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 6 + k); }
+      const isSel = selected.pack === this.name && selected.cell === k;
+      c.outline.material.opacity = isSel ? 1 : 0;
+    }
+    // NTC open blink
+    (st.temps_c || []).forEach((t, i) => { if (this.ntc[i] && t <= -39) this.ntc[i].material.emissiveIntensity = (Math.sin(time * 8) > 0 ? 1.5 : 0.1); else if (this.ntc[i]) this.ntc[i].material.emissiveIntensity = 0.9; });
+    // fault beacon
+    const f = (st.faults || []).length > 0;
+    this.beacon.material.emissiveIntensity = f ? (Math.sin(time * 7) > 0 ? 4 : 0.2) : 0;
+    // current particles
+    this.disp.I += (st.current_a - this.disp.I) * Math.min(1, dt * 3);
+    const I = this.disp.I, a = Math.abs(I);
+    const on = a > 0.3;
+    this.parts.visible = on;
+    if (on) {
+      this.partMat.color.copy(I > 0 ? C_CHG : C_DSG);
+      const v = (0.04 + 0.5 * Math.min(1, a / Math.max(1, st.rated_ah))) * (I < 0 ? 1 : -1);
+      const r = 0.006 + 0.004 * Math.min(1, a / Math.max(1, st.rated_ah));
+      const m = new THREE.Matrix4(), p = new THREE.Vector3(), s = new THREE.Vector3(r, r, r), q = new THREE.Quaternion();
+      for (let i = 0; i < this.nPart; i++) {
+        let u = this.partU[i] + v * dt / this.path.len;
+        u -= Math.floor(u); this.partU[i] = u;
+        this.path.at(u, p);
+        this.parts.setMatrixAt(i, m.compose(p, q, s));
+      }
+      this.parts.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  dispose() { world.remove(this.group); }
+}
+
+// ---------------------------------------------------------------- gateway + RS485
+class GatewayView {
+  constructor(views) {
+    const g = this.group = new THREE.Group();
+    const zs = Math.min(...views.map(v => -v.L.Z / 2)) - 0.42;
+    g.position.set(0, 0, zs); world.add(g);
+    const pcb = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.004, 0.14), M.pcb);
+    pcb.position.y = 0.012; pcb.castShadow = true; g.add(pcb);
+    for (const [x, z, w, d, h] of [[0, 0, 0.04, 0.04, 0.004], [-0.06, 0.03, 0.03, 0.02, 0.003],
+        [0.055, -0.035, 0.05, 0.03, 0.015], [-0.05, -0.045, 0.06, 0.02, 0.01], [0.07, 0.04, 0.03, 0.04, 0.012]]) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), z === 0 && x === 0 ? M.chip : M.fin);
+      c.position.set(x, 0.014 + h / 2, z); c.castShadow = true; g.add(c);
+    }
+    for (const [x, z] of [[-0.09, -0.06], [0.09, -0.06], [-0.09, 0.06], [0.09, 0.06]]) {
+      const s = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 8), M.fin);
+      s.position.set(x, 0.006, z); g.add(s);
+    }
+    this.hb = led('#00e5ff', 0.005); this.hb.position.set(0.085, 0.018, 0.0); g.add(this.hb);
+    const l = label('<b>STM32MP135</b> gateway · RS485 ×' + views.length + ' → MQTT/TLS', 'dlabel');
+    l.obj.position.set(0, 0.09, 0); g.add(l.obj);
+    // RS485 cables to each BMS
+    this.links = new Map();
+    views.forEach((v, i) => {
+      const a = new THREE.Vector3(-0.06 + i * 0.06, 0.016, 0.07).add(g.position);
+      const b = v.rs485Anchor.clone().add(v.group.position);
+      const mid = a.clone().lerp(b, 0.5); mid.y = 0.02;
+      const side = new THREE.Vector3(v.group.position.x - v.L.X / 2 - 0.1, 0.02, v.group.position.z);
+      const pts = [a, new THREE.Vector3(a.x, 0.01, a.z + 0.08), new THREE.Vector3(side.x, 0.008, zs + 0.25),
+        side, new THREE.Vector3(side.x + 0.02, 0.008, b.z - 0.02), b];
+      const matl = new THREE.MeshStandardMaterial({ color: '#8d7b5a', roughness: 0.6, emissive: '#000' });
+      const t = tube(pts, 0.0035, matl); world.add(t.mesh);
+      const path = new Path(t.curve.getSpacedPoints(200));
+      this.links.set(v.name, { path, matl, packets: [], online: true });
+    });
+    this.pkGeo = new THREE.SphereGeometry(0.009, 10, 8);
+  }
+  setLink(v, online, flaky) {
+    const L = this.links.get(v.name); if (!L) return;
+    L.online = online;
+    L.matl.color.set(online ? (flaky ? '#c9a227' : '#8d7b5a') : '#5a2020');
+    L.matl.emissive.set(online ? '#000' : '#3a0000');
+  }
+  send(v, delay, reply) {
+    const L = this.links.get(v.name); if (!L) return;
+    const m = new THREE.Mesh(this.pkGeo, new THREE.MeshBasicMaterial({ color: C_REQ, toneMapped: false }));
+    m.visible = false; world.add(m);
+    L.packets.push({ m, u: -delay * 1.6, dir: 1, reply });
+  }
+  animate(dt, time) {
+    this.hb.material.emissiveIntensity = Math.sin(time * 3) > 0.6 ? 3 : 0.3;
+    const p = new THREE.Vector3();
+    for (const L of this.links.values()) {
+      for (const k of L.packets) {
+        k.u += dt * 1.6;
+        if (k.u < 0) continue;
+        const u = k.dir === 1 ? k.u : 1 - k.u;
+        if (k.u >= 1) {
+          if (k.dir === 1 && k.reply) { k.dir = -1; k.u = 0; k.m.material.color.copy(C_REP); }
+          else { k.done = true; world.remove(k.m); k.m.material.dispose(); continue; }
+        }
+        k.m.visible = true; k.m.position.copy(L.path.at(Math.min(1, Math.max(0, u)), p));
+      }
+      L.packets = L.packets.filter(k => !k.done);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- build / sync
+function rebuild(list) {
+  for (const v of packs.values()) v.dispose();
+  if (gateway) world.remove(gateway.group);
+  world.clear(); pickables.length = 0; packs = new Map();
+  const widths = list.map(p => layoutOf(p.cells).X + 0.42);
+  const total = widths.reduce((a, b) => a + b, 0);
+  let x = -total / 2;
+  list.forEach((p, i) => { packs.set(p.name, new PackView(p, x + widths[i] / 2 - 0.05)); x += widths[i]; });
+  gateway = new GatewayView([...packs.values()]);
+  for (const v of packs.values()) v.st = null;
+  if (!selected.pack || !packs.has(selected.pack)) selected = { pack: list[list.length - 1].name, cell: null };
+  // fit camera to the bench width
+  const span = Math.max(1.2, total);
+  HOME.pos.set(0.1, 0.55 + span * 0.42, 0.7 + span * 0.8);
+  if (!rebuild.done) {
+    if (CAM?.length === 6) { camera.position.set(CAM[0], CAM[1], CAM[2]); controls.target.set(CAM[3], CAM[4], CAM[5]); }
+    else camera.position.copy(HOME.pos);
+    rebuild.done = true;
+  }
+}
+
+let lastSig = '', lastData = null, inflight = false;
+async function poll() {
+  if (inflight) return; inflight = true;
+  try {
+    const r = await fetch('/api/status', { cache: 'no-store' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'simulator error');
+    setConn(true);
+    const sig = d.packs.map(p => p.name + ':' + p.cells + ':' + p.temps_c.length).join(',');
+    if (sig !== lastSig) { rebuild(d.packs); lastSig = sig; }
+    for (const p of d.packs) packs.get(p.name).update(p);
+    lastData = d;
+    renderTop(d); renderPanel();
+  } catch (e) {
+    setConn(false, String(e.message || e));
+  } finally { inflight = false; }
+}
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+function setConn(ok, err) {
+  $('conn').className = 'dot ' + (ok ? 'on' : 'off');
+  $('connText').textContent = ok ? 'live' : 'no simulator';
+  const msg = $('msg');
+  if (ok) msg.style.display = 'none';
+  else {
+    msg.style.display = 'block';
+    msg.innerHTML = `<b>Simulator not reachable</b><p class="sub">${err}</p>
+      <p>Start it with a control socket, then keep this page open:</p>
+      <pre class="mono" style="white-space:pre-wrap">python3 -m bhm_gateway sim kit12v kit36v kit48v --link-dir /tmp/bms --speed 60
+python3 -m bhm_gateway simviz --socket /tmp/bms/control.sock</pre>`;
+  }
+}
+const SPEEDS = [0, 1, 10, 60, 600, 3600];
+$('speeds').innerHTML = SPEEDS.map(s => `<button data-speed="${s}">${s === 0 ? '❚❚' : s + '×'}</button>`).join(' ');
+$('speeds').addEventListener('click', e => { const s = e.target.dataset.speed; if (s != null) cmd(`speed ${s}`); });
+function renderTop(d) {
+  const t = d.packs[0]?.sim_time_h ?? 0;
+  const days = Math.floor(t / 24), hh = Math.floor(t % 24), mm = Math.floor((t * 60) % 60);
+  $('simtime').textContent = `sim t = ${days ? days + 'd ' : ''}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  for (const b of $('speeds').children) b.classList.toggle('sel', Number(b.dataset.speed) === d.speed);
+}
+
+function stat(k, v, color) { return `<div class="stat"><div class="k">${k}</div><div class="v mono" ${color ? `style="color:${color}"` : ''}>${v}</div></div>`; }
+function renderPanel() {
+  const v = packs.get(selected.pack); if (!v || !v.st) return;
+  const s = v.st, I = s.current_a;
+  const valid = s.cells_mv.filter(x => x);
+  const dmv = valid.length ? Math.max(...valid) - Math.min(...valid) : 0;
+  const temps = s.temps_c.map(t => t <= -39 ? 'open' : t + '°').join(' / ');
+  $('pTitle').innerHTML = `<h2>${s.name}</h2><div class="sub">${s.cells}S LiFePO4 · ${s.nominal_v} V · ${s.rated_ah} Ah · profile <b>${s.profile}</b></div>`;
+  $('pStats').innerHTML =
+    stat('Pack voltage', s.voltage_v.toFixed(2) + ' V') +
+    stat('Current', (I >= 0 ? '+' : '') + I.toFixed(1) + ' A', I > 0.2 ? 'var(--chg)' : I < -0.2 ? 'var(--dsg)' : '') +
+    stat('SOC (BMS)', s.bms_soc.toFixed(1) + ' %') +
+    stat('SOC (true)', s.true_soc.toFixed(1) + ' %', 'var(--muted)') +
+    stat('Temperatures', temps) +
+    stat('Cell spread', dmv + ' mV', dmv > 100 ? 'var(--bad)' : dmv > 40 ? 'var(--warn)' : '') +
+    stat('Phase', s.phase) +
+    stat('Cycles', s.cycles) +
+    stat('Charge MOS', s.chg_mos ? 'ON' : 'OFF', s.chg_mos ? 'var(--ok)' : 'var(--bad)') +
+    stat('Discharge MOS', s.dis_mos ? 'ON' : 'OFF', s.dis_mos ? 'var(--ok)' : 'var(--bad)');
+  $('pFaults').innerHTML = (s.faults.length ? s.faults.map(f => `<span class="tag">${f}</span>`).join('')
+    : '<span class="tag ok">no faults</span>') +
+    (s.comm.online ? '' : '<span class="tag">BMS not answering</span>') +
+    (s.comm.drop || s.comm.corrupt ? `<span class="tag">RS485 drop ${s.comm.drop} / corrupt ${s.comm.corrupt}</span>` : '') +
+    (s.balancing.length ? `<span class="tag ok">balancing ${s.balancing.join(', ')}</span>` : '');
+  // cell bars
+  const cb = $('cellbars');
+  if (cb.children.length !== s.cells) cb.innerHTML = s.cell_soc !== undefined || true
+    ? Array.from({ length: s.cells }, (_, k) => `<div data-k="${k}"></div>`).join('') : '';
+  const lo = Math.min(...(valid.length ? valid : [3200])) - 30, hi = Math.max(...(valid.length ? valid : [3300])) + 10;
+  [...cb.children].forEach((el, k) => {
+    const mv = s.cells_mv[k];
+    el.style.height = (mv ? 8 + 92 * (mv - lo) / Math.max(1, hi - lo) : 4) + '%';
+    el.style.background = '#' + voltColor(mv / 1000).getHexString();
+    el.className = (selected.cell === k ? 'sel ' : '') + (s.balancing.includes(k + 1) ? 'bal' : '');
+    el.title = `cell ${k + 1}: ${mv ? mv + ' mV' : 'open wire'}`;
+  });
+  const k = selected.cell;
+  $('cellInfo').textContent = k == null ? `min ${Math.min(...valid)} · max ${Math.max(...valid)} mV` :
+    `cell ${k + 1}: ${s.cells_mv[k] || '— (open)'} mV · SOC ${s.cell_soc?.[k] ?? '?'} % · ${s.cell_ah?.[k] ?? '?'} Ah`;
+  spark($('sparkSoc'), v.hist, [{ key: 'soc', color: '#4fc3f7' }, { key: 'tsoc', color: '#8b98a8', dash: [4, 3] }], 0, 100);
+  const amax = Math.max(5, ...v.hist.map(h => Math.abs(h.I)));
+  spark($('sparkCur'), v.hist, [{ key: 'I', color: '#ffab40', split: true }], -amax, amax);
+  if (document.activeElement !== $('profile') && (s.profile === 'cycle' || s.profile === 'drive')) $('profile').value = s.profile;
+  renderPower(s);
+}
+
+function spark(cv, hist, series, y0, y1) {
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const pad = 4, Y = v => h - pad - (v - y0) / (y1 - y0) * (h - 2 * pad);
+  c.strokeStyle = '#2a3340'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, Y((y0 + y1) / 2)); c.lineTo(w, Y((y0 + y1) / 2)); c.stroke();
+  if (hist.length < 2) return;
+  const X = i => i / (hist.length - 1) * w;
+  for (const s of series) {
+    c.setLineDash(s.dash || []); c.lineWidth = 1.6;
+    if (s.split) {
+      for (let i = 1; i < hist.length; i++) {
+        const v = hist[i][s.key];
+        c.strokeStyle = v > 0.2 ? '#5cf28a' : v < -0.2 ? '#ffab40' : '#8b98a8';
+        c.beginPath(); c.moveTo(X(i - 1), Y(hist[i - 1][s.key])); c.lineTo(X(i), Y(v)); c.stroke();
+      }
+    } else {
+      c.strokeStyle = s.color; c.beginPath();
+      hist.forEach((p, i) => i ? c.lineTo(X(i), Y(p[s.key])) : c.moveTo(X(i), Y(p[s.key])));
+      c.stroke();
+    }
+  }
+  c.setLineDash([]);
+  c.fillStyle = '#8b98a8'; c.font = '10px system-ui';
+  c.fillText(String(Math.round(y1)), 4, 11); c.fillText(String(Math.round(y0)), 4, h - 5);
+}
+
+function select(pack, cell) {
+  selected = { pack, cell };
+  if (lastData) { for (const p of lastData.packs) packs.get(p.name)?.update(p); renderPanel(); }
+}
+$('cellbars').addEventListener('click', e => { const k = e.target.dataset.k; if (k != null) select(selected.pack, Number(k)); });
+
+let toastT;
+function toast(text, bad) {
+  const t = $('toast'); t.textContent = text; t.style.borderColor = bad ? 'var(--bad)' : 'var(--line)';
+  t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, 2600);
+}
+async function cmd(line) {
+  try {
+    const r = await fetch('/api/cmd', { method: 'POST', body: line });
+    const d = await r.json();
+    toast(d.ok ? `✓ ${line}` : `✗ ${d.error}`, !d.ok);
+    poll();
+  } catch (e) { toast('✗ ' + e, true); }
+}
+const P = () => selected.pack;
+const needCell = () => { if (selected.cell == null) { toast('Click a cell first', true); return null; } return selected.cell + 1; };
+function setMode(pack, mode) { cmd(`set ${pack} profile=${mode}`); }
+$('mChg').onclick = () => setMode(P(), 'charge');
+$('mOff').onclick = () => setMode(P(), 'idle');
+$('mDis').onclick = () => setMode(P(), 'discharge');
+const SL = {
+  chg: { input: $('sChg'), val: $('vChg'), lim: $('lChg'), c: $('cChg'), key: 'charge_a', max: 'max_charge_a', range: 1.0 },
+  dis: { input: $('sDis'), val: $('vDis'), lim: $('lDis'), c: $('cDis'), key: 'load_a', max: 'max_discharge_a', range: 1.5 },
+};
+let dragging = null;
+for (const sl of Object.values(SL)) {
+  sl.input.addEventListener('pointerdown', () => dragging = sl);
+  sl.input.addEventListener('input', () => { dragging = sl; showSlider(sl, Number(sl.input.value), packs.get(P())?.st); });
+  sl.input.addEventListener('pointerup', () => setTimeout(() => { if (dragging === sl) dragging = null; }, 400));
+  sl.input.addEventListener('change', () => {
+    dragging = null;
+    cmd(`set ${P()} ${sl.key}=${sl.input.value}`);
+  });
+}
+function showSlider(sl, a, s) {
+  if (!s) return;
+  sl.val.textContent = a.toFixed(0);
+  sl.lim.textContent = Math.round(s[sl.max]);
+  sl.c.textContent = (a / s.rated_ah).toFixed(2) + ' C';
+  sl.input.parentElement.classList.toggle('over', a > s[sl.max]);
+}
+function renderPower(s) {
+  $('mChg').classList.toggle('on', s.profile === 'charge');
+  $('mOff').classList.toggle('on', s.profile === 'idle');
+  $('mDis').classList.toggle('on', s.profile === 'discharge');
+  for (const sl of Object.values(SL)) {
+    if (s[sl.key] === undefined) continue;
+    const max = Math.max(5, Math.round(s.rated_ah * sl.range));
+    if (dragging !== sl) {
+      if (Number(sl.input.max) !== max) sl.input.max = max;
+      sl.input.value = s[sl.key];
+      showSlider(sl, s[sl.key], s);
+    }
+  }
+  const I = s.current_a;
+  let note = '';
+  if (s.profile === 'charge') note = !s.chg_mos ? 'Charge MOS is OFF: the BMS is blocking the charger.'
+    : Math.abs(I) < 0.5 ? 'Charger on, pack full: holding at CV (no current).'
+    : I < s.charge_a - 0.5 ? `CV phase: current tapering (${I.toFixed(1)} A of ${s.charge_a} A).` : 'Charging at constant current.';
+  else if (s.profile === 'discharge') note = !s.dis_mos ? 'Discharge MOS is OFF: the BMS cut the load (press Charge to recover).'
+    : 'Load on at constant current until the BMS cuts off.';
+  else if (s.profile === 'idle') note = 'Nothing connected.';
+  else note = `Auto profile "${s.profile}" is running (phase ${s.phase}). Press Charge / Discharge to take over.`;
+  $('modeNote').textContent = note;
+}
+$('btnProfile').onclick = () => cmd(`set ${P()} profile=${$('profile').value}`);
+$('btnSoc').onclick = () => cmd(`set ${P()} soc=${$('inSoc').value}`);
+$('btnAmb').onclick = () => cmd(`set ${P()} ambient=${$('inAmb').value}`);
+document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => cmd(`fault ${P()} ${b.dataset.f}`));
+document.querySelectorAll('[data-cellf]').forEach(b => b.onclick = () => {
+  const k = needCell(); if (k == null) return;
+  cmd(`fault ${P()} ${b.dataset.cellf}:${k}${b.dataset.cellf === 'weak' ? ':60' : ''}`);
+});
+$('btnHot').onclick = () => cmd(`set ${P()} ambient=62`);
+$('btnHeavy').onclick = () => cmd(`set ${P()} profile=discharge load_a=${Math.round((packs.get(P())?.st?.rated_ah || 100) * 1.5)}`);
+$('btnOffline').onclick = () => { const on = packs.get(P())?.st?.comm?.online !== false; cmd(`comm ${P()} online=${on ? 0 : 1}`); };
+$('btnFlaky').onclick = () => cmd(`comm ${P()} drop=0.2 corrupt=0.05`);
+$('btnClear').onclick = () => cmd(`clear ${P()}`).then(() => cmd(`comm ${P()} online=1 drop=0 corrupt=0`));
+$('btnClearAll').onclick = () => cmd('clear all').then(() => cmd('comm all online=1 drop=0 corrupt=0'));
+$('btnRotate').onclick = e => { controls.autoRotate = !controls.autoRotate; e.target.classList.toggle('sel', controls.autoRotate); };
+$('btnView').onclick = () => { camera.position.copy(HOME.pos); controls.target.copy(HOME.target); };
+
+// picking (click without drag)
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false)[0];
+  if (!hit) return;
+  const u = hit.object.userData;
+  if (u.mode) { select(u.pack, null); setMode(u.pack, packs.get(u.pack)?.st?.profile === u.mode ? 'idle' : u.mode); }
+  else select(u.pack, u.cell);
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  renderer.domElement.style.cursor = ray.intersectObjects(pickables, false).length ? 'pointer' : '';
+});
+
+// ---------------------------------------------------------------- loop
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); labels.setSize(w, h);
+  camera.aspect = w / h;
+  // keep the scene centred in the area left of the side panel
+  if (w > 820) camera.setViewOffset(w, h, 186, 0, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(0.1, clock.getDelta()), time = clock.elapsedTime;
+  controls.update();
+  for (const v of packs.values()) v.animate(dt, time);
+  gateway?.animate(dt, time);
+  renderer.render(scene, camera); labels.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+poll(); setInterval(poll, POLL_MS);
+window.__bhm = { packs: () => packs, camera, renderer };   // for scripted tests / the console
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+[Unit]
+Description=BHM Daly BMS simulator - fake 12/36/48 V LiFePO4 packs for testing without batteries
+Before=bhm-gateway.service
+
+[Service]
+Type=simple
+# Override in /etc/bhm/sim.env, e.g.
+#   BHM_SIM_ARGS="kit12v kit36v,profile=drive kit48v,ah=50 --speed 10"
+Environment="BHM_SIM_ARGS=kit12v kit36v kit48v"
+EnvironmentFile=-/etc/bhm/sim.env
+Environment=PYTHONPATH=/opt/bhm-gateway/lib PYTHONUNBUFFERED=1
+# PTYs appear as /run/bhm-sim/<name>, group dialout so the gateway's service user can open
+# them; control socket /run/bhm-sim/control.sock (python3 -m bhm_gateway simctl status).
+ExecStart=/usr/bin/python3 -m bhm_gateway sim $BHM_SIM_ARGS --link-dir /run/bhm-sim \
+    --group dialout --state-file /var/lib/bhm-sim/state.json --print-every 60
+Restart=always
+RestartSec=2
+
+DynamicUser=yes
+SupplementaryGroups=dialout
+RuntimeDirectory=bhm-sim
+RuntimeDirectoryMode=0755
+StateDirectory=bhm-sim
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
