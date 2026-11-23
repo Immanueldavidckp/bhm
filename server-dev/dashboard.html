@@ -40,85 +40,106 @@ th{color:var(--mut);font-weight:600}
 .b{font-weight:700}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
 pre{margin:0;background:var(--bg);border-radius:8px;padding:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
 @media (max-width:420px){.g2{grid-template-columns:1fr}}
+.pill.stale i{background:var(--warn)}.pill.down i{background:var(--bad)}
+.tab.off{opacity:.65}
+.empty{color:var(--mut);padding:30px 0;text-align:center}
+#alog td:last-child{white-space:normal;min-width:220px}
 </style></head><body><main>
 <header><div><h1>Battery health monitor</h1>
-<div class="sub">12 V, 36 V and 48 V packs reporting through the STM32MP gateway (simulated data)</div></div>
-<span class="pill"><i></i>MQTT connected</span></header>
+<div class="sub">12 V, 36 V and 48 V LiFePO4 kits (Daly BMS) reporting through the STM32MP135 gateway over MQTT/TLS. Kits are simulated until the real BMSes are wired.</div></div>
+<span class="pill down" id="pill"><i></i><span id="pillText">Connecting…</span></span></header>
 
-<div class="tabs" id="tabs"></div>
+<div class="tabs" id="tabs"><div class="empty">Loading…</div></div>
 <div class="kpis" id="kpis"></div>
 
 <div class="g2">
- <div class="card"><h2>Live voltage and current</h2><p>Last 60 seconds. Positive current means discharge.</p><div class="cv"><canvas id="cLive"></canvas></div></div>
+ <div class="card"><h2>Live voltage and current</h2><p>Last 10 minutes. Positive current means charging, negative means discharging.</p><div class="cv"><canvas id="cLive"></canvas></div></div>
  <div class="card"><h2>Cell voltages</h2><p id="cellNote"></p><div class="cv"><canvas id="cCell"></canvas></div></div>
 </div>
 <div class="g2">
- <div class="card"><h2>State of health trend</h2><p id="rul"></p><div class="cv"><canvas id="cSoh"></canvas></div></div>
- <div class="card"><h2>Alarm log</h2><p>Raised when a threshold is crossed, and again when it clears.</p>
+ <div class="card"><h2>State of charge, last 6 hours</h2><p>SOC reported by the BMS (coulomb counting). State of health needs capacity tests over many cycles and is not measured yet.</p><div class="cv"><canvas id="cSoc"></canvas></div></div>
+ <div class="card"><h2>Alarm log</h2><p>BMS alarms when raised and cleared, and when a kit goes offline or comes back.</p>
   <div class="scroll"><table><thead><tr><th>Time</th><th>Pack</th><th>Event</th></tr></thead><tbody id="alog"></tbody></table></div></div>
 </div>
-<div class="card" style="margin-bottom:12px"><h2>Pack comparison</h2><p>Health score = SoH minus penalties for cell imbalance and high temperature.</p>
- <div class="scroll"><table><thead><tr><th>Pack</th><th>Config</th><th>SoC</th><th>SoH</th><th>R<sub>int</sub></th><th>Cycles</th><th>Imbalance</th><th>Life left</th><th>Score</th><th>Status</th></tr></thead><tbody id="cmp"></tbody></table></div></div>
-<div class="card"><h2>Last MQTT message from the gateway</h2><p id="topic"></p><pre id="payload"></pre></div>
+<div class="card" style="margin-bottom:12px"><h2>Pack comparison</h2><p>Latest reading of every kit. Imbalance is the highest minus the lowest cell voltage.</p>
+ <div class="scroll"><table><thead><tr><th>Pack</th><th>Config</th><th>SoC</th><th>Remaining</th><th>Cycles</th><th>Imbalance</th><th>Max temp</th><th>Charge / discharge MOS</th><th>Faults</th><th>Status</th></tr></thead><tbody id="cmp"></tbody></table></div></div>
+<div class="card"><h2>Latest reading from the gateway</h2><p id="topic"></p><pre id="payload"></pre></div>
 </main>
 <script>
 const $=s=>document.querySelector(s),css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const rnd=(a=1)=>(Math.random()-.5)*2*a,f=(x,d=1)=>(+x).toFixed(d);
-const P=[
-{id:'12V',tp:'pack12v',name:'12 V pack',cfg:'4S LiFePO4',n:4,vmin:2.5,vmax:3.65,lfp:1,ah:20,soh:94,cyc:112,r:22,col:'--c12',soc:82},
-{id:'36V',tp:'pack36v',name:'36 V pack',cfg:'10S Li-ion',n:10,vmin:3,vmax:4.2,ah:10,soh:88,cyc:241,r:68,col:'--c36',soc:64},
-{id:'48V',tp:'pack48v',name:'48 V pack',cfg:'13S Li-ion',n:13,vmin:3,vmax:4.2,ah:14,soh:83,cyc:398,r:95,col:'--c48',soc:71,bad:6}];
-let cur=0,tick=0;const LOG=[];
-P.forEach(p=>{p.mode='d';p.i=0;p.t=28;p.h={l:[],v:[],i:[]};p.al={};
-p.off=Array.from({length:p.n},()=>rnd(.003));if(p.bad!=null)p.off[p.bad]=-.072;
-const k=(100-p.soh)/p.cyc;p.pts=[];for(let j=0;j<=20;j++){const c=p.cyc*j/20;p.pts.push({x:Math.round(c),y:+(100-k*c+(j<20?rnd(.35):0)).toFixed(2)})}
-p.pts[20].y=p.soh;
-const n=p.pts.length,sx=p.pts.reduce((a,q)=>a+q.x,0),sy=p.pts.reduce((a,q)=>a+q.y,0),sxy=p.pts.reduce((a,q)=>a+q.x*q.y,0),sxx=p.pts.reduce((a,q)=>a+q.x*q.x,0);
-p.m=(n*sxy-sx*sy)/(n*sxx-sx*sx);p.b=(sy-p.m*sx)/n;p.rul=Math.max(0,Math.round((80-p.b)/p.m-p.cyc));});
-function ocv(p,s){s=Math.min(1,Math.max(0,s));const v=p.lfp?3+.3*s+.35*s**16-.6*(1-s)**12:p.vmin+(p.vmax-p.vmin)*(.75*s+.25*Math.sqrt(s));return Math.max(p.vmin-.1,v)}
-function flag(p,key,on,msg){if(on!==!!p.al[key]){p.al[key]=on;LOG.unshift({t:new Date().toLocaleTimeString(),p:p.id,m:on?msg:msg+' cleared',lv:on?'warn':'ok'});LOG.length=Math.min(LOG.length,8)}}
-function step(){tick++;P.forEach((p,x)=>{
-p.i=p.mode=='d'?p.ah*.3*(.6+.4*Math.sin(tick/12+x))+rnd(.25):-p.ah*.25+rnd(.2);
-p.soc-=p.i*30/(p.ah*3600)*100;if(p.soc<20)p.mode='c';if(p.soc>98)p.mode='d';
-const heat=(p.bad!=null&&tick%120>85)?9:0;
-p.t+=((28+Math.abs(p.i)*(p.r/30)*.6+heat)-p.t)*.08+rnd(.05);
-p.cells=p.off.map(o=>ocv(p,p.soc/100)-p.i*(p.r/p.n)/1000+o);
-p.V=p.cells.reduce((a,c)=>a+c,0);p.P=p.V*p.i;
-const mx=Math.max(...p.cells),mn=Math.min(...p.cells);p.imb=(mx-mn)*1000;
-flag(p,'imb',p.imb>50,'Cell imbalance above 50 mV');flag(p,'ot',p.t>40,'Temperature above 40 °C');
-flag(p,'ov',mx>p.vmax+.02,'Cell over-voltage');flag(p,'uv',mn<p.vmin,'Cell under-voltage');
-p.score=Math.round(p.soh-p.imb*.1-Math.max(0,p.t-40)*.5);
-p.stat=(p.al.ov||p.al.uv)?'Alarm':(p.al.imb||p.al.ot)?'Warning':'Normal';
-const H=p.h;H.l.push(new Date().toLocaleTimeString([], {minute:'2-digit',second:'2-digit'}));H.v.push(+f(p.V,2));H.i.push(+f(p.i,2));
-if(H.l.length>60)for(const k in H)H[k].shift();});}
-const sc=s=>s=='Alarm'?'bad':s=='Warning'?'warn':'ok';
-let live,cell,soh;
+const f=(x,d=1)=>x==null?'–':(+x).toFixed(d);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STALE_S=40;                                  // gateway reads every 10 s
+const T=iso=>iso?new Date(iso):null;
+const hm=d=>d?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'–';
+const ago=s=>s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':Math.round(s/3600)+' h';
+const nice=n=>String(n).replace(/_l([12])$/,' L$1').replace(/_/g,' ');
+let P=[],cur=null,now=new Date(),live,cell,socC;
+
+function colOf(p){const v=+p.nominal_voltage;return v<20?'--c12':v<45?'--c36':'--c48'}
+function nameOf(p){const m=/(\d+)\s*v/i.exec(p.battery_id);return m?m[1]+' V kit':p.battery_id}
+function ageOf(p){return (now-T(p.ts))/1000}
+function statusOf(p){
+  if((p.link&&p.link.state==='offline')||ageOf(p)>STALE_S)return 'Offline';
+  const fl=p.faults||[];
+  if(fl.some(x=>/_l2$|fault|err|fail/.test(x)))return 'Alarm';
+  if(fl.length)return 'Warning';
+  return 'Normal'}
+const sc=s=>s==='Alarm'||s==='Offline'?'bad':s==='Warning'?'warn':'ok';
+
 function theme(){Chart.defaults.color=css('--mut');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='Manrope,system-ui,sans-serif'}
 function mk(){theme();
 live=new Chart($('#cLive'),{type:'line',data:{labels:[],datasets:[{label:'Voltage (V)',data:[],yAxisID:'y',pointRadius:0,tension:.3,borderWidth:2},{label:'Current (A)',data:[],yAxisID:'y1',pointRadius:0,tension:.3,borderWidth:2,borderDash:[5,3]}]},
 options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{maxTicksLimit:6}},y:{position:'left',title:{display:true,text:'V'}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'A'}}},plugins:{legend:{labels:{boxWidth:14}}}}});
-cell=new Chart($('#cCell'),{type:'bar',data:{labels:[],datasets:[{label:'Cell voltage (V)',data:[],borderRadius:3}]},options:{maintainAspectRatio:false,animation:false,scales:{y:{}},plugins:{legend:{display:false}}}});
-soh=new Chart($('#cSoh'),{type:'scatter',data:{datasets:[{label:'Measured SoH (%)',data:[],pointRadius:3},{label:'Trend to 80%',data:[],showLine:true,pointRadius:0,borderDash:[6,4],borderWidth:2}]},options:{maintainAspectRatio:false,scales:{x:{title:{display:true,text:'Cycles'}},y:{min:70,max:100,title:{display:true,text:'SoH %'}}},plugins:{legend:{labels:{boxWidth:14}}}}});}
-function pick(i){cur=i;const p=P[i],c=css(p.col);
-soh.data.datasets[0].data=p.pts;soh.data.datasets[0].backgroundColor=c;
-soh.data.datasets[1].data=[{x:0,y:p.b},{x:Math.round((80-p.b)/p.m),y:80}];soh.data.datasets[1].borderColor=c;
-soh.options.scales.x.max=Math.round((80-p.b)/p.m)+20;soh.update();
-$('#rul').innerHTML='Trend predicts SoH reaches 80% in about <b>'+p.rul+' more cycles</b> ('+f(Math.abs(p.m),3)+'% lost per cycle).';
-cell.options.scales.y.min=p.lfp?2.4:3;cell.options.scales.y.max=p.lfp?3.7:4.3;
-live.data.datasets[0].borderColor=c;live.data.datasets[1].borderColor=css('--mut');
-$('#topic').textContent='Topic: bms/stm32mp-01/'+p.tp+'/telemetry';render()}
-function render(){const p=P[cur],c=css(p.col);
-document.documentElement.style.setProperty('--pc',c);
-$('#tabs').innerHTML=P.map((q,i)=>'<button class="tab'+(i==cur?' on':'')+'" style="--pc:'+css(q.col)+'" onclick="pick('+i+')"><b>'+q.name+'</b> <span class="sub">'+q.cfg+'</span><div class="sub"><span class="'+sc(q.stat)+' b">'+q.stat+'</span> at '+f(q.soc,0)+'% SoC, '+(q.mode=='d'?'discharging':'charging')+'</div><div class="bar"><span style="width:'+f(q.soc,0)+'%;background:'+css(q.col)+'"></span></div></button>').join('');
-$('#kpis').innerHTML=[['Voltage',f(p.V,2),'V'],['Current',f(p.i,2),'A'],['Power',f(p.P,0),'W'],['Temperature',f(p.t,1),'°C'],['State of charge',f(p.soc,1),'%']].map(k=>'<div class="k" style="--pc:'+c+'"><small>'+k[0]+'</small><div>'+k[1]+'<em>'+k[2]+'</em></div></div>').join('');
-live.data.labels=p.h.l;live.data.datasets[0].data=p.h.v;live.data.datasets[1].data=p.h.i;live.update('none');
-const mn=Math.min(...p.cells);cell.data.labels=p.cells.map((_,i)=>'C'+(i+1));cell.data.datasets[0].data=p.cells.map(v=>+f(v,3));
-cell.data.datasets[0].backgroundColor=p.cells.map(v=>(p.imb>50&&v==mn)?css('--bad'):c);cell.update('none');
-$('#cellNote').innerHTML='Imbalance (max minus min): <b class="'+(p.imb>50?'warn':'ok')+'">'+f(p.imb,0)+' mV</b>. Flagged above 50 mV.';
-$('#cmp').innerHTML=P.map(q=>'<tr><td class="b" style="color:'+css(q.col)+'">'+q.id+'</td><td>'+q.cfg+'</td><td>'+f(q.soc,0)+'%</td><td>'+q.soh+'%</td><td>'+q.r+' mΩ</td><td>'+q.cyc+'</td><td>'+f(q.imb,0)+' mV</td><td>'+q.rul+' cycles</td><td class="b">'+q.score+'</td><td class="b '+sc(q.stat)+'">'+q.stat+'</td></tr>').join('');
-$('#alog').innerHTML=LOG.length?LOG.map(l=>'<tr><td>'+l.t+'</td><td class="b">'+l.p+'</td><td class="'+l.lv+'">'+l.m+'</td></tr>').join(''):'<tr><td colspan="3">No alarms yet.</td></tr>';
-$('#payload').textContent=JSON.stringify({ts:Math.floor(Date.now()/1000),voltage:+f(p.V,2),current:+f(p.i,2),temp:+f(p.t,1),soc:+f(p.soc,1),soh:p.soh,cell_delta_mv:Math.round(p.imb),alarm:p.stat!='Normal'},null,1)}
-mk();for(let i=0;i<60;i++)step();pick(0);
-setInterval(()=>{step();render()},1000);
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{theme();pick(cur);soh.update()});
+cell=new Chart($('#cCell'),{type:'bar',data:{labels:[],datasets:[{label:'Cell voltage (V)',data:[],borderRadius:3}]},options:{maintainAspectRatio:false,animation:false,scales:{y:{min:2.4,max:3.7}},plugins:{legend:{display:false}}}});
+socC=new Chart($('#cSoc'),{type:'line',data:{labels:[],datasets:[{label:'SOC (%)',data:[],pointRadius:0,tension:.2,borderWidth:2,fill:false}]},options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{maxTicksLimit:7}},y:{min:0,max:100,title:{display:true,text:'SOC %'}}},plugins:{legend:{display:false}}}});}
+
+async function get(u){const r=await fetch(location.origin+u,{cache:'no-store',credentials:'same-origin'});if(!r.ok)throw new Error(u+': '+r.status);return r.json()}
+
+async function loadSummary(){
+  try{const d=await get('/api/summary');now=T(d.now)||new Date();P=d.packs;
+    if(!cur||!P.find(p=>p.battery_id===cur))cur=P.length?P[0].battery_id:null;
+    const newest=P.reduce((a,p)=>Math.max(a,T(p.ts)),0),age=(now-newest)/1000;
+    const pill=$('#pill');
+    if(!P.length){pill.className='pill stale';$('#pillText').textContent='No readings yet'}
+    else if(age<=STALE_S){pill.className='pill';$('#pillText').textContent='Live · last reading '+ago(age)+' ago'}
+    else{pill.className='pill stale';$('#pillText').textContent='No new data for '+ago(age)}
+    render()}
+  catch(e){$('#pill').className='pill down';$('#pillText').textContent='Server not reachable'+(/ 401$/.test(e.message)?' (log in again)':'');console.warn('summary:',e.message)}}
+
+async function loadHistory(){if(!cur)return;
+  try{const d=await get('/api/history?battery='+encodeURIComponent(cur)+'&minutes=10');
+    live.data.labels=d.points.map(q=>hm(T(q.ts)));const vv=d.points.map(q=>q.voltage_v),ii=d.points.map(q=>q.current_a);live.data.datasets[0].data=vv;live.data.datasets[1].data=ii;if(vv.length){const lo=Math.min(...vv),hi=Math.max(...vv);live.options.scales.y.suggestedMin=Math.floor(lo-.5);live.options.scales.y.suggestedMax=Math.ceil(hi+.5)}if(ii.length){const a=Math.max(5,...ii.map(Math.abs));live.options.scales.y1.suggestedMin=-Math.ceil(a*1.1);live.options.scales.y1.suggestedMax=Math.ceil(a*1.1)}live.update('none')}catch(e){}}
+async function loadSoc(){if(!cur)return;
+  try{const d=await get('/api/history?battery='+encodeURIComponent(cur)+'&minutes=360');
+    socC.data.labels=d.points.map(q=>T(q.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));socC.data.datasets[0].data=d.points.map(q=>q.soc_pct);socC.update('none')}catch(e){}}
+async function loadEvents(){
+  try{const d=await get('/api/events?limit=12'),rows=[];
+    for(const e of d.events){const t=T(e.ts),day=t&&t.toDateString()!==now.toDateString()?t.toLocaleDateString([],{day:'numeric',month:'short'})+' ':'';
+      if(e.kind==='status'){const on=e.state==='online';rows.push([day+hm(t),e.source,(on?'Online':'Offline')+(e.reason&&!on?' – '+e.reason:''),on?'ok':'bad'])}
+      else{(e.raised||[]).forEach(x=>rows.push([day+hm(t),e.source,'Raised: '+nice(x),/_l2$|fault|err/.test(x)?'bad':'warn']));
+           (e.cleared||[]).forEach(x=>rows.push([day+hm(t),e.source,'Cleared: '+nice(x),'ok']))}}
+    $('#alog').innerHTML=rows.length?rows.slice(0,12).map(r=>'<tr><td>'+esc(r[0])+'</td><td class="b">'+esc(r[1])+'</td><td class="'+r[3]+'">'+esc(r[2])+'</td></tr>').join(''):'<tr><td colspan="3">No alarms yet.</td></tr>'}catch(e){}}
+
+function pick(id){cur=id;render();loadHistory();loadSoc()}
+function render(){
+  if(!P.length){$('#tabs').innerHTML='<div class="empty">No readings in the database yet.</div>';return}
+  const p=P.find(q=>q.battery_id===cur),c=css(colOf(p));
+  document.documentElement.style.setProperty('--pc',c);
+  $('#tabs').innerHTML=P.map(q=>{const st=statusOf(q);return '<button class="tab'+(q.battery_id===cur?' on':'')+(st==='Offline'?' off':'')+'" style="--pc:'+css(colOf(q))+'" onclick="pick(\''+esc(q.battery_id)+'\')"><b>'+esc(nameOf(q))+'</b> <span class="sub">'+esc(q.battery_id)+' · '+q.cell_count+'S '+esc(q.chemistry||'')+'</span><div class="sub"><span class="'+sc(st)+' b">'+st+'</span> at '+f(q.soc_pct,0)+'% SoC, '+esc(q.state||'')+'</div><div class="bar"><span style="width:'+f(q.soc_pct,0)+'%;background:'+css(colOf(q))+'"></span></div></button>'}).join('');
+  $('#kpis').innerHTML=[['Voltage',f(p.voltage_v,2),'V'],['Current',(p.current_a>0?'+':'')+f(p.current_a,1),'A'],['Power',f(p.power_w,0),'W'],['Temperature',f(p.temp_max_c,0),'°C'],['State of charge',f(p.soc_pct,1),'%'],['Remaining',f(p.remaining_ah,1),'Ah']].map(k=>'<div class="k" style="--pc:'+c+'"><small>'+k[0]+'</small><div>'+k[1]+'<em>'+k[2]+'</em></div></div>').join('');
+  live.data.datasets[0].borderColor=c;live.data.datasets[1].borderColor=css('--mut');socC.data.datasets[0].borderColor=c;
+  const cells=(p.cells_mv||[]).map(v=>v/1000),valid=cells.filter(v=>v>0),mx=Math.max(...valid),mn=Math.min(...valid),imb=p.cell_delta_mv;
+  cell.data.labels=cells.map((_,i)=>'C'+(i+1));cell.data.datasets[0].data=cells;
+  cell.data.datasets[0].backgroundColor=cells.map((v,i)=>v<=0?css('--mut'):(imb>50&&v===mn)?css('--bad'):(p.balancing||[]).includes(i+1)?css('--warn'):c);
+  cell.options.scales.y.min=Math.min(2.4,mn-.05);cell.options.scales.y.max=Math.max(3.7,mx+.05);cell.update('none');
+  $('#cellNote').innerHTML=valid.length?'Imbalance (max minus min): <b class="'+(imb>50?'warn':'ok')+'">'+f(imb,0)+' mV</b> (cell '+p.cell_max_no+' highest, cell '+p.cell_min_no+' lowest). '+((p.balancing||[]).length?'Balancing: cell '+p.balancing.join(', ')+' (amber). ':'')+'Red above 50 mV.':'No cell data.';
+  $('#cmp').innerHTML=P.map(q=>{const st=statusOf(q);return '<tr><td class="b" style="color:'+css(colOf(q))+'">'+esc(nameOf(q))+'</td><td>'+q.cell_count+'S '+esc(q.chemistry||'')+', '+f(q.nominal_voltage,1)+' V'+(q.rated_ah?', ~'+q.rated_ah+' Ah':'')+'</td><td>'+f(q.soc_pct,0)+'%</td><td>'+f(q.remaining_ah,1)+' Ah</td><td>'+(q.cycles??'–')+'</td><td>'+f(q.cell_delta_mv,0)+' mV</td><td>'+f(q.temp_max_c,0)+' °C</td><td>'+(q.charge_mos?'on':'<b class="bad">OFF</b>')+' / '+(q.discharge_mos?'on':'<b class="bad">OFF</b>')+'</td><td>'+((q.faults||[]).map(nice).map(esc).join(', ')||'–')+'</td><td class="b '+sc(st)+'">'+st+'</td></tr>'}).join('');
+  $('#topic').textContent='Topic: bhm/'+p.site+'/'+p.battery_id+'/telemetry · read at '+hm(T(p.ts))+' ('+ago(ageOf(p))+' ago), gateway boot '+p.boot_id+', message #'+p.seq;
+  const {id,received_at,...msg}=p;$('#payload').textContent=JSON.stringify(msg,null,1)}
+
+mk();
+loadSummary().then(()=>{loadHistory();loadSoc()});loadEvents();
+setInterval(loadSummary,5000);setInterval(loadHistory,10000);setInterval(loadSoc,60000);setInterval(loadEvents,10000);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{theme();render();live.update();cell.update();socC.update()});
 </script></body></html>

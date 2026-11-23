@@ -6,6 +6,7 @@
 #   mysql      127.0.0.1:3306           database "bhm"
 #   ingester   MQTT bhm/# -> MySQL
 #   adminer    http://127.0.0.1:8080    browse the database (server: mysql, user: bhm)
+#   dashboard  http://127.0.0.1:8090    dashboard.html + read-only API (password: DASH_PASSWORD in .env)
 name: bhm
 services:
   mosquitto:
@@ -72,6 +73,25 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       ADMINER_DEFAULT_SERVER: mysql
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: bhm
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: bhm
+      DASH_USER: ${DASH_USER:-bhm}
+      DASH_PASSWORD: ${DASH_PASSWORD:-}
+    ports:
+      - "127.0.0.1:8090:8090"
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
