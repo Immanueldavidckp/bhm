@@ -1,7 +1,12 @@
-# Local TLS broker for testing the gateway (same setup can be used on Oracle Cloud).
-#   ./gen_certs.sh localhost bhm-gw-lab1 bhm-ingest
-#   ./add_user.sh bhm-gw-lab1 ; ./add_user.sh bhm-ingest
-#   docker compose up -d
+# BHM server stack for the laptop (same layout will move to Oracle Cloud later).
+#   ./setup_laptop.sh <laptop-ip>     certs, MQTT users, .env with generated DB passwords
+#   docker compose up -d --build
+#
+#   mosquitto  :8883 on all interfaces  (TLS + client cert + password; the board connects here)
+#   mysql      127.0.0.1:3306           database "bhm"
+#   ingester   MQTT bhm/# -> MySQL
+#   adminer    http://127.0.0.1:8080    browse the database (server: mysql, user: bhm)
+name: bhm
 services:
   mosquitto:
     image: eclipse-mosquitto:2.0.20
@@ -16,5 +21,59 @@ services:
       - ./certs:/mosquitto/certs:ro
       - mosquitto-data:/mosquitto/data
     restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?run setup_laptop.sh first}
+      MYSQL_DATABASE: bhm
+      MYSQL_USER: bhm
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?run setup_laptop.sh first}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+
+  ingester:
+    build: ./ingester
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_USER: bhm-ingest
+      MQTT_PASSWORD: ${MQTT_INGEST_PASSWORD:?run setup_laptop.sh first}
+      MQTT_CA: /certs/ca.crt
+      MQTT_CERT: /certs/bhm-ingest.crt
+      MQTT_KEY: /certs/bhm-ingest.key
+      MYSQL_HOST: mysql
+      MYSQL_USER: bhm
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: bhm
+    volumes:
+      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./certs/bhm-ingest.crt:/certs/bhm-ingest.crt:ro
+      - ./certs/bhm-ingest.key:/certs/bhm-ingest.key:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:4.8.1
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    restart: unless-stopped
+
 volumes:
   mosquitto-data:
+  mysql-data:
