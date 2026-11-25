@@ -1,368 +1,748 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battery health monitoring system</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battery Health Dashboard</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
 <style>
-:root{--bg:#f1f3f2;--card:#fff;--tx:#14201c;--mu:#5d6b66;--ln:#dfe4e2;--ok:#1b8a52;--wa:#b87400;--wn:#d9590b;--cr:#c62f2f;--c12:#b87400;--c36:#0f8577;--c48:#5b45c9;--dk:#14201c}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1513;--card:#192320;--tx:#e8efec;--mu:#9aaba5;--ln:#2a3833;--ok:#3fcf86;--wa:#e0a030;--wn:#f08a4b;--cr:#ef6b6b;--c12:#e0a030;--c36:#3cc5b3;--c48:#9d8cf5;--dk:#e8efec}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.w{max-width:1280px;margin:0 auto;padding:20px}
-h1{font-size:24px;margin:0}h2{font-size:15px;margin:0 0 4px}.mu{color:var(--mu)}.sm{font-size:12px}
-.top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
-.pill{border:1px solid var(--ln);background:var(--card);border-radius:99px;padding:4px 12px;font-weight:600;font-size:12px;display:inline-flex;gap:6px;align-items:center}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--mu)}.dot.on{background:var(--ok)}.dot.bad{background:var(--cr)}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
-.tab{border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:99px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
-.tab.on{background:var(--dk);color:var(--bg);border-color:var(--dk)}
-.badge{background:var(--cr);color:#fff;border-radius:99px;padding:0 6px;font-size:11px;margin-left:4px}
-.g{display:grid;gap:12px}.g3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}.g6{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
-.c{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:12px;overflow-x:auto}.g>.c{margin:0}
-.kit{cursor:pointer;border:2px solid transparent}.kit.sel{border-color:var(--kc)}
-.bar{height:6px;border-radius:4px;background:var(--ln);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%}
-.m{border-left:3px solid var(--kc);border-radius:8px;background:var(--card);padding:8px 12px}.m b{font-size:22px;display:block}
-table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:top}th{color:var(--mu);font-weight:600;font-size:12px}
-.st{font-weight:700}.Healthy,.healthy{color:var(--ok)}.Watch{color:var(--wa)}.Warning,.warning{color:var(--wn)}.Critical,.critical{color:var(--cr)}
-.chip{border:1px solid var(--ln);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;margin:2px 4px 2px 0;display:inline-block}
-.chip.ok{color:var(--ok)}.chip.off{color:var(--mu)}
-button.b{border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
-button.b:hover{border-color:var(--tx)}button.p{background:var(--dk);color:var(--bg)}
-.cells{display:flex;gap:4px;align-items:flex-end;height:120px;margin-top:8px}.cells div{flex:1;min-width:6px;border-radius:3px 3px 0 0;position:relative}
-.cl{display:flex;gap:4px;font-size:10px;color:var(--mu)}.cl span{flex:1;text-align:center;min-width:6px}
-svg{width:100%;height:auto;display:block}
-input,select{font:inherit;padding:6px 8px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);width:100%}
-label{display:block;font-size:12px;color:var(--mu);margin:8px 0 2px}
-#toasts{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:9;max-width:340px}
-.toast{background:var(--card);border-left:4px solid var(--wn);box-shadow:0 4px 18px #0003;padding:10px 12px;border-radius:8px}
-.toast.critical{border-color:var(--cr)}
-.tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.tb select{width:auto}
-pre{background:var(--bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;max-height:260px}
+:root{
+--bg:#f1f4f2;--card:#fff;--ink:#14211d;--mut:#5d6b66;
+--line:#d9e1dd;--c12:#b87400;--c36:#00796e;--c48:#5846d0;
+--ok:#1f8f4e;--warn:#b7791f;--bad:#c53030;
+box-sizing:border-box;
+padding-top:env(safe-area-inset-top,0px);
+padding-bottom:env(safe-area-inset-bottom,0px)
+}
+@media(prefers-color-scheme:dark){
+:root:not([data-theme="light"]){
+--bg:#0c1411;--card:#142019;--ink:#e6efeb;--mut:#92a39c;
+--line:#25362e;--c12:#f0b429;--c36:#2dd4bf;
+--c48:#a597ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171
+}}
+:root[data-theme="dark]{
+--bg:#0c1411;--card:#142019;--ink:#e6efeb;--mut:#92a39c;
+--line:#25362e;--c12:#f0b429;--c36:#2dd4bf;
+--c48:#a597ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+font:400 14px/1.45 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:18px 14px 40px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;
+align-items:center;gap:8px;margin-bottom:14px}
+h1{font-size:22px;font-weight:800;margin:0}
+.sub{color:var(--mut);font-size:13px}
+.pill{border:1px solid var(--line);background:var(--card);
+border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600}
+.pill i{display:inline-block;width:8px;height:8px;
+border-radius:50%;background:var(--warn);margin-right:6px}
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+gap:10px;margin-bottom:12px}
+.tab{background:var(--card);border:2px solid var(--line);
+border-radius:10px;padding:10px 14px;text-align:left;color:inherit;
+font:inherit;cursor:pointer}
+.tab:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.tab b{font-size:16px;font-weight:800}
+.tab .bar{height:6px;background:var(--line);
+border-radius:3px;margin-top:8px;overflow:hidden}
+.tab .bar span{display:block;height:100%}
+.tab.on{border-color:var(--pc)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+gap:10px;margin-bottom:12px}
+.k{background:var(--card);border-left:4px solid var(--pc);
+border-radius:8px;padding:10px 14px}
+.k small{color:var(--mut);font-weight:600}
+.k div{font-size:26px;font-weight:800;line-height:1.2}
+.k em{font-style:normal;font-size:13px;font-weight:600;
+color:var(--mut);margin-left:3px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
+gap:12px;margin-bottom:12px}
+.card{background:var(--card);border-radius:10px;padding:14px;min-width:0}
+.card h2{font-size:15px;font-weight:800;margin:0 0 2px}
+.card p{margin:0 0 8px;color:var(--mut);font-size:12.5px}
+.cv{position:relative;height:240px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:600}
+.b{font-weight:700}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+pre{margin:0;background:var(--bg);border-radius:8px;padding:10px;
+font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;
+overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+@media(max-width:420px){.g2{grid-template-columns:1fr}}
 </style>
 </head>
+
 <body>
-<div class="w">
-  <div class="top">
-    <div><h1>Battery health monitoring system</h1><div class="mu">12 V, 36 V and 48 V LiFePO4 kits monitored through a gateway board and MQTT</div></div>
-    <div id="pill"></div>
-  </div>
-  <div class="tabs" id="tabs"></div>
-  <div id="view"></div>
+<main>
+
+<header>
+ <div>
+  <h1>Battery health monitor</h1>
+  <div class="sub">12 V, 36 V and 48 V battery packs | BHM Gateway</div>
+ </div>
+ <span class="pill" id="connection">
+  <i id="connectionDot"></i><span id="connectionText">Connecting...</span>
+ </span>
+</header>
+
+<div class="sub" id="topic" style="margin-bottom:10px">
+ Waiting for battery telemetry...
 </div>
-<div id="toasts"></div>
 
-<!-- MQTT over WebSocket client (only needed for live mode) -->
-<script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+<div class="tabs" id="tabs"></div>
+<div class="kpis" id="kpis"></div>
+
+<div class="g2">
+ <div class="card">
+  <h2>Live voltage and current</h2>
+  <p>Last 60 readings. Positive current means charging.</p>
+  <div class="cv"><canvas id="cLive"></canvas></div>
+ </div>
+ <div class="card">
+  <h2>Cell voltages</h2>
+  <p id="cellNote">Waiting for cell data...</p>
+  <div class="cv"><canvas id="cCell"></canvas></div>
+ </div>
+</div>
+
+<div class="g2">
+ <div class="card">
+  <h2>State of health trend</h2>
+  <p id="rul">SOH data will appear when supplied by the BMS.</p>
+  <div class="cv"><canvas id="cSoh"></canvas></div>
+ </div>
+
+ <div class="card">
+  <h2>Alarm log</h2>
+  <p>Raised and cleared battery faults.</p>
+  <div class="scroll">
+   <table>
+    <thead>
+     <tr><th>Time</th><th>Pack</th><th>Event</th></tr>
+    </thead>
+    <tbody id="alog">
+     <tr><td colspan="3">No alarms received.</td></tr>
+    </tbody>
+   </table>
+  </div>
+ </div>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+ <h2>Battery comparison</h2>
+ <p>Latest available readings from all three packs.</p>
+ <div class="scroll">
+  <table>
+   <thead>
+    <tr>
+     <th>Battery</th><th>Voltage</th><th>Current</th>
+     <th>SoC</th><th>Temperature</th><th>Cycles</th>
+     <th>Cell imbalance</th><th>State</th><th>Faults</th>
+    </tr>
+   </thead>
+   <tbody id="cmp">
+    <tr><td colspan="9">Waiting for telemetry...</td></tr>
+   </tbody>
+  </table>
+ </div>
+</div>
+
+<div class="card">
+ <h2>Latest MQTT telemetry payload</h2>
+ <p>Latest received battery message.</p>
+ <pre id="payload">Waiting for MQTT data...</pre>
+</div>
+
+</main>
+
 <script>
-/* ============ config & helpers ============ */
-const $=s=>document.querySelector(s);
-/* ---- CONFIG: edit here or use the URL, e.g. ?mode=mqtt&url=wss://host:9001&user=dash&pass=secret ---- */
-const P=new URLSearchParams(location.search);
-const CFG={mode:P.get('mode')==='mqtt'?'mqtt':'sim',url:P.get('url')||'ws://localhost:9001',user:P.get('user')||'',pass:P.get('pass')||'',topic:P.get('topic')||'bhm/+/+/telemetry',sound:P.get('sound')==='1'};
-const TH={tWarn:45,tCrit:55,dWarn:50,dCrit:150,cLow:3000,cHigh:3650,socWarn:20,socCrit:10,stale:10};
-const SRC=CFG.mode==='sim'?'sim':'live';
-const RETAIN=7*864e5,SAVE_EVERY=10000;
-const COL={kit12v:'--c12',kit36v:'--c36',kit48v:'--c48'};
-const hhmmss=d=>new Date(d).toLocaleTimeString('en-GB');
-const f=(v,n=1)=>v==null||isNaN(v)?'n/a':(+v).toFixed(n);
-const dur=h=>!isFinite(h)||h<=0?'n/a':h>=1?`${Math.floor(h)} h ${Math.round(h%1*60)} min`:`${Math.round(h*60)} min`;
-let tab='overview',sel=null,conn='idle',K={},ALARMS=[],HIST=[];
 
-/* ============ database (IndexedDB, persists across reloads) ============ */
-let DB=null,RB=[],AB=[];
-const idb=new Promise(res=>{try{const r=indexedDB.open('bhm',1);
-  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('readings',{autoIncrement:true}).createIndex('t','t');d.createObjectStore('alarms',{autoIncrement:true}).createIndex('t','t')};
-  r.onsuccess=()=>{DB=r.result;res(DB)};r.onerror=()=>res(null)}catch(e){res(null)}});
-function flush(){return new Promise(res=>{if(!DB||(!RB.length&&!AB.length))return res();
-  const r=RB.splice(0),a=AB.splice(0),tx=DB.transaction(['readings','alarms'],'readwrite');
-  r.forEach(x=>tx.objectStore('readings').add(x));a.forEach(x=>tx.objectStore('alarms').add(x));
-  tx.oncomplete=tx.onerror=tx.onabort=()=>res()})}
-function scan(store,since,fn){return new Promise(res=>{if(!DB)return res();
-  const q=DB.transaction(store).objectStore(store).index('t').openCursor(IDBKeyRange.lowerBound(since),'prev');
-  q.onsuccess=()=>{const c=q.result;if(c){fn(c.value);c.continue()}else res()};q.onerror=()=>res()})}
-function edge(store,dir){return new Promise(res=>{if(!DB)return res(null);
-  const q=DB.transaction(store).objectStore(store).index('t').openCursor(null,dir);q.onsuccess=()=>res(q.result?q.result.value.t:null);q.onerror=()=>res(null)})}
-function countAll(store){return new Promise(res=>{if(!DB)return res(0);const q=DB.transaction(store).objectStore(store).count();q.onsuccess=()=>res(q.result);q.onerror=()=>res(0)})}
-async function purge(){await idb;if(!DB)return;
-  ['readings','alarms'].forEach(st=>{const q=DB.transaction(st,'readwrite').objectStore(st).index('t').openCursor(IDBKeyRange.upperBound(Date.now()-RETAIN));
-    q.onsuccess=()=>{const c=q.result;if(c){c.delete();c.continue()}}})}
+// ==========================================
+// 1. CONFIGURATION
+// ==========================================
 
-/* ============ state per kit ============ */
-function kit(id){return K[id]||(K[id]={id,label:id.replace('kit','').toUpperCase(),last:null,seen:0,lastTs:0,h:[],eIn:0,eOut:0,ahOut:0,peak:0,tSum:0,tN:0,first:Date.now(),dev:[],n:0,cap:0})}
+// This is the backend WebSocket address, NOT the Oracle MQTT address.
+// Change the port/path to match your actual server implementation.
 
-function ingest(m){
-  if(!m||!m.battery_id||!m.pack||!m.cells||!m.temps)return;
-  const k=kit(m.battery_id),p=m.pack,c=m.cells,now=Date.now();
-  const ts=Date.parse(m.ts)||now;
-  if(k.lastTs&&ts>k.lastTs){const dt=Math.min((ts-k.lastTs)/3.6e6,0.1);
-    if(p.power_w>0)k.eIn+=p.power_w*dt;else k.eOut+=-p.power_w*dt;
-    if(p.current_a<0)k.ahOut+=-p.current_a*dt}
-  k.lastTs=ts;k.last=m;k.seen=now;k.n=c.count;
-  if(p.soc_pct>5)k.cap=p.remaining_ah/(p.soc_pct/100);
-  k.peak=Math.max(k.peak,Math.abs(p.power_w));k.tSum+=m.temps.max_c;k.tN++;
-  const avg=c.voltages_mv.reduce((a,b)=>a+b,0)/c.voltages_mv.length;
-  c.voltages_mv.forEach((v,i)=>k.dev[i]=(k.dev[i]==null?v-avg:k.dev[i]*.97+(v-avg)*.03));
-  k.h.push({t:now,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv});
-  if(k.h.length>240)k.h.shift();
-  if(now-(k.sv||0)>=SAVE_EVERY){k.sv=now;RB.push({t:now,kit:k.id,label:k.label,src:SRC,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv})}
-  if(!sel)sel=k.id;
-  reconcile(k);
-}
+const WS_URL = "ws://127.0.0.1:8000/ws/telemetry";
 
-/* ============ health & alarm rules ============ */
-function conds(k){
-  const o=[],L=(sev,key,title,cause,action)=>o.push({sev,key,title,cause,action});
-  const m=k.last;if(!m)return o;
-  if(Date.now()-k.seen>TH.stale*1000){L('warning','offline','No data',`Nothing received for over ${TH.stale} s. The gateway, RS485 link or network may be down.`,'Check the gateway service and the USB-RS485 cable.');return o}
-  const t=m.temps.max_c,d=m.cells.delta_mv,s=m.pack.soc_pct,c=m.cells;
-  if(t>=TH.tCrit)L('critical','temp','High temperature',`Temperature is ${t} C (critical limit ${TH.tCrit}). Likely overload or poor cooling.`,'Stop charge/discharge and cool the pack.');
-  else if(t>=TH.tWarn)L('warning','temp','High temperature',`Temperature is ${t} C (limit ${TH.tWarn}). Likely overload or poor cooling.`,'Reduce load or charge rate and improve airflow.');
-  if(d>=TH.dCrit)L('critical','imb','Cell imbalance',`Cells differ by ${d} mV (critical ${TH.dCrit}).`,'Stop use, balance-charge and inspect the weakest cell.');
-  else if(d>=TH.dWarn)L('warning','imb','Cell imbalance',`Cells differ by ${d} mV (limit ${TH.dWarn}). Likely a weak cell or balancing not completing.`,'Charge fully so the balancer can work, then inspect the weakest cell.');
-  if(c.min_mv<=TH.cLow)L('critical','clow','Cell under-voltage',`Cell ${c.min_cell} is at ${c.min_mv} mV (limit ${TH.cLow}). Over-discharge or a weak cell.`,'Stop discharging and recharge gently.');
-  if(c.max_mv>=TH.cHigh)L('critical','chigh','Cell over-voltage',`Cell ${c.max_cell} is at ${c.max_mv} mV (limit ${TH.cHigh}).`,'Stop charging and check the charger and balancer.');
-  if(s<=TH.socCrit&&m.pack.current_a<0)L('critical','soc','Battery almost empty',`State of charge is ${f(s)} %.`,'Disconnect the load and recharge.');
-  else if(s<=TH.socWarn&&m.pack.current_a<0)L('warning','soc','Low charge',`State of charge is ${f(s)} %.`,'Plan a recharge soon.');
-  k.dev.forEach((v,i)=>{if(v<-30)L('warning','weak'+i,`Weak cell C${i+1}`,`Cell ${i+1} stays about ${Math.round(-v)} mV below the other cells. Likely an ageing or damaged cell.`,'Test that cell on its own and plan its replacement.')});
-  (m.faults||[]).forEach(x=>L('warning','bms_'+x,'BMS fault: '+x.replace(/_/g,' '),'The BMS itself reported this fault.','Check the cell/temperature that tripped it.'));
-  return o;
-}
-const rec=(now,k,ev,c)=>{HIST.unshift({t:now,kit:k.id,ev,title:c.title,sev:c.sev});AB.push({t:now,kit:k.id,label:k.label,ev,title:c.title,sev:c.sev,src:SRC})};
-function reconcile(k){
-  const now=Date.now(),cs=conds(k),keys=new Set(cs.map(c=>c.key));
-  cs.forEach(c=>{if(!ALARMS.find(a=>a.kit===k.id&&a.key===c.key)){
-    const a={...c,kit:k.id,since:now,ack:false};ALARMS.push(a);
-    rec(now,k,'raised',c);toast(a)}});
-  ALARMS=ALARMS.filter(a=>{if(a.kit!==k.id||keys.has(a.key))return true;
-    rec(now,k,'cleared',a);return false});
-  if(HIST.length>200)HIST.length=200;
-}
-function health(k){
-  const m=k.last;if(!m)return null;
-  const d=m.cells.delta_mv,t=m.temps.max_c,fc=(m.faults||[]).length;
-  const pi=Math.min(20,d*.2),pt=Math.min(15,Math.max(0,t-40)),pf=Math.min(20,fc*5),sc=100-pi-pt-pf;
-  const crit=t>55||d>150||sc<50||ALARMS.some(a=>a.kit===k.id&&a.sev==='critical');
-  return{sc,pi,pt,pf,st:crit?'Critical':sc>=85?'Healthy':sc>=70?'Watch':'Warning'};
-}
+const BATTERIES = [
+ {id:"kit12v",name:"12V Battery",col:"--c12"},
+ {id:"kit36v",name:"36V Battery",col:"--c36"},
+ {id:"kit48v",name:"48V Battery",col:"--c48"}
+];
 
-/* ============ notifications ============ */
-function toast(a){
-  const e=document.createElement('div');e.className='toast '+a.sev;
-  e.innerHTML=`<b>${K[a.kit].label}: ${a.title}</b><div class="sm mu">${a.cause}</div>`;
-  $('#toasts').appendChild(e);setTimeout(()=>e.remove(),7000);
-  if(a.sev==='critical'&&CFG.sound)try{const x=new(window.AudioContext||window.webkitAudioContext)(),o=x.createOscillator();o.connect(x.destination);o.frequency.value=880;o.start();o.stop(x.currentTime+.25)}catch(e){}
-  try{if(window.Notification&&Notification.permission==='granted'&&a.sev==='critical')new Notification(`${K[a.kit].label}: ${a.title}`,{body:a.cause})}catch(e){}
-}
+let cur = 0;
+let socket = null;
+let reconnectDelay = 2000;
+let reconnectTimer = null;
+let live,cell,soh;
 
-/* ============ simulator (same JSON as the gateway) ============ */
-const SPEC={kit12v:{n:4,nom:12.8,cap:100},kit36v:{n:12,nom:38.4,cap:60},kit48v:{n:16,nom:51.2,cap:40}};
-const OCV=[[0,2800],[5,3100],[10,3200],[20,3240],[50,3290],[80,3330],[90,3350],[95,3400],[100,3600]];
-const ocv=s=>{for(let i=1;i<OCV.length;i++)if(s<=OCV[i][0]){const[a,b]=OCV[i-1],[c,d]=OCV[i];return b+(d-b)*(s-a)/(c-a)}return 3600};
-let SIM={},simT=Date.now(),simTimer=null;
-function simInit(){simT=Date.now();SIM={};let r=1;
-  for(const id in SPEC){const s=SPEC[id];SIM[id]={soc:40+r*18%50,mode:'dis',cycles:40+r*5,T:26,off:Array.from({length:s.n},()=>(Math.random()-.5)*14),weak:Math.floor(Math.random()*s.n),heat:0,offl:0,seq:0,load:5+r*4};r++}}
-function simTick(){
-  simT+=30000;
-  for(const id in SPEC){const s=SPEC[id],x=SIM[id];x.seq++;
-    if(x.mode==='dis'&&x.soc<12){x.mode='chg'}else if(x.mode==='chg'&&x.soc>99){x.mode='dis';x.cycles++}
-    const sc=s.n/4*.8,I=x.mode==='dis'?-(x.load*sc+Math.random()*3):(x.soc>94?8:20)*sc/2*(1+Math.random()*.1);
-    x.soc=Math.min(100,Math.max(0,x.soc+I*30/3600/s.cap*100));
-    const target=26+Math.abs(I)*.5+(x.heat>0?30:0);x.T+=(target-x.T)*.08+(Math.random()-.5)*.4;if(x.heat>0)x.heat--;
-    x.off[x.weak]-=(x.mode==='dis'?.25:0)*(x.off[x.weak]>-90);
-    const v=Array.from({length:s.n},(_,i)=>Math.round(ocv(x.soc)+x.off[i]+I*(i===x.weak?1.8:.9)+(Math.random()-.5)*2));
-    const mx=Math.max(...v),mn=Math.min(...v),bal=x.mode==='chg'&&x.soc>90?v.map((a,i)=>a-mn>10?i+1:0).filter(Boolean):[];
-    const tt=[Math.round(x.T),Math.round(x.T-1)],pv=v.reduce((a,b)=>a+b,0)/1000,faults=[];
-    if(mn<3000)faults.push('cell_volt_low_l1');if(x.T>55)faults.push('temp_high_l2');
-    if(x.offl>0){x.offl--;continue}
-    ingest({schema:1,site:'lab1',battery_id:id,nominal_voltage:s.nom,chemistry:'LiFePO4',ts:new Date(simT).toISOString(),seq:x.seq,
-      pack:{voltage_v:+pv.toFixed(2),current_a:+I.toFixed(2),power_w:Math.round(pv*I),soc_pct:+x.soc.toFixed(1),state:I>.5?'charging':I<-.5?'discharging':'idle',remaining_ah:+(s.cap*x.soc/100).toFixed(2),cycles:x.cycles,charge_mos:true,discharge_mos:true,charger_connected:I>0,load_connected:I<0},
-      cells:{count:s.n,voltages_mv:v,max_mv:mx,max_cell:v.indexOf(mx)+1,min_mv:mn,min_cell:v.indexOf(mn)+1,delta_mv:mx-mn,balancing:bal},
-      temps:{sensors_c:tt,max_c:Math.max(...tt),min_c:Math.min(...tt)},faults,fault_code:faults.length?1:0});
-  }
-  Object.values(K).forEach(reconcile);
-}
-function inject(type,id){const x=SIM[id];if(!x)return;
-  if(type==='heat')x.heat=40;if(type==='weak')x.off[x.weak]-=70;if(type==='off')x.offl=15;if(type==='low'){x.soc=9;x.mode='dis'}}
+const P = {};
+const LOG = [];
 
-/* ============ live MQTT over WebSocket ============ */
-let cli=null;
-function connect(){
-  if(!window.mqtt){conn='mqtt.js not loaded (check internet / CDN)';return}
-  conn='connecting';
-  cli=mqtt.connect(CFG.url,{username:CFG.user||undefined,password:CFG.pass||undefined,reconnectPeriod:3000,clientId:'bhm-dash-'+Math.random().toString(16).slice(2,8)});
-  cli.on('connect',()=>{conn='connected';cli.subscribe(CFG.topic,{qos:0})});
-  cli.on('reconnect',()=>conn='reconnecting');
-  cli.on('error',e=>conn='error: '+e.message);
-  cli.on('offline',()=>conn='offline');
-  cli.on('message',(t,b)=>{if(!t.endsWith('/telemetry'))return;try{ingest(JSON.parse(b.toString()))}catch(e){}});
-}
-function start(){
-  clearInterval(simTimer);if(cli){try{cli.end(true)}catch(e){}cli=null}
-  K={};ALARMS=[];HIST=[];sel=null;
-  if(CFG.mode==='sim'){conn='simulator';simInit();for(let i=0;i<20;i++)simTick();simTimer=setInterval(simTick,1000)}
-  else connect();
-}
-
-/* ============ charts ============ */
-function line(series,H=150){
-  const W=600,all=series.flatMap(s=>s.d);if(all.length<2)return'<div class="mu">Waiting for data…</div>';
-  return`<svg viewBox="0 0 ${W} ${H}">`+series.map(s=>{
-    const mn=s.min??Math.min(...s.d),mx=s.max??Math.max(...s.d),r=(mx-mn)||1;
-    const pts=s.d.map((v,i)=>`${(i/(s.d.length-1)*W).toFixed(1)},${(H-8-(v-mn)/r*(H-16)).toFixed(1)}`).join(' ');
-    return`<polyline fill="none" stroke="${s.c}" stroke-width="2" ${s.dash?'stroke-dasharray="5 4"':''} points="${pts}"/>`}).join('')+'</svg>'+
-    '<div class="sm mu">'+series.map(s=>`<span style="color:${s.c}">■</span> ${s.n}: ${f(s.d[s.d.length-1],s.dp??2)} (min ${f(Math.min(...s.d),s.dp??2)}, max ${f(Math.max(...s.d),s.dp??2)})`).join(' &nbsp; ')+'</div>';
-}
-const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-
-/* ============ views ============ */
-const TABS=[['overview','Overview'],['health','Health Monitoring'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
-function kitCard(k){
-  const m=k.last,h=health(k);if(!m)return`<div class="c kit" style="--kc:var(${COL[k.id]||'--tx'})">${k.label}: waiting…</div>`;
-  const s=m.pack.soc_pct;
-  return`<div class="c kit ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})">
-  <b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span><br>
-  <span class="st ${h.st}">${h.st}</span> at ${f(s,0)}% SoC, ${m.pack.state}
-  <div class="bar"><i style="width:${s}%;background:var(${COL[k.id]||'--tx'})"></i></div></div>`}
-function vOverview(){
-  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet. In live mode, check the CONFIG block at the top of the script and that the gateway is publishing.</div>';
-  const k=K[sel]||ks[0],m=k.last;if(!m)return'';
-  const p=m.pack,c=m.cells,kc=`var(${COL[k.id]||'--tx'})`,mn=Math.min(...c.voltages_mv),mx=Math.max(...c.voltages_mv);
-  const eta=p.current_a<-.5?['Time to empty',dur(p.remaining_ah/-p.current_a)]:p.current_a>.5&&k.cap?['Time to full',dur((k.cap-p.remaining_ah)/p.current_a)]:['Time left','n/a'];
-  const met=[['Voltage',f(p.voltage_v,2),'V'],['Current',f(p.current_a,2),'A'],['Power',Math.round(p.power_w),'W'],['Temperature',m.temps.max_c,'°C'],['State of charge',f(p.soc_pct),'%'],['Remaining',f(p.remaining_ah),'Ah'],[eta[0],eta[1],'']]
-    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b>${x[1]} <span class="sm mu">${x[2]}</span></b></div>`).join('');
-  const lo=Math.min(2800,mn-50),hi=Math.max(3700,mx+50);
-  const bars=c.voltages_mv.map((v,i)=>{const bal=(c.balancing||[]).includes(i+1),bad=v===mn&&c.delta_mv>TH.dWarn;
-    return`<div title="C${i+1}: ${v} mV" style="height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;background:${bad?css('--cr'):bal?css('--ok'):css('--wa')}"></div>`}).join('');
-  const chip=(t,on)=>`<span class="chip ${on?'ok':'off'}">${t}: ${on?'on':'off'}</span>`;
-  const rows=ks.map(x=>{const h=health(x),q=x.last;if(!q)return'';return`<tr><td style="color:var(${COL[x.id]||'--tx'})"><b>${x.label}</b></td><td>${x.n}S</td><td>${f(q.pack.soc_pct,0)}%</td><td>${q.pack.cycles}</td><td>${q.cells.delta_mv} mV</td><td>${q.temps.max_c} °C</td><td><b>${f(h.sc)}</b></td><td class="st ${h.st}">${h.st}</td></tr>`}).join('');
-  return`<div class="g g3" style="margin-bottom:12px">${ks.map(kitCard).join('')}</div>
-  <div class="g g6" style="margin-bottom:12px">${met}</div>
-  <div class="c"><h2>BMS status</h2>${chip('Charge MOS',p.charge_mos)}${chip('Discharge MOS',p.discharge_mos)}${chip('Charger',p.charger_connected)}${chip('Load',p.load_connected)}
-   <div class="sm mu">Balancing cells: ${(c.balancing||[]).length?c.balancing.join(', '):'none'}. Active faults: ${(m.faults||[]).join(', ')||'none'}. Last reading ${Math.round((Date.now()-k.seen)/1000)} s ago${m.seq?`, message #${m.seq}`:''}.</div></div>
-  <div class="g g2"><div class="c"><h2>Live voltage and current</h2><div class="sm mu">Last ${k.h.length} readings. Positive current means charging.</div>
-   ${line([{n:'Voltage V',d:k.h.map(x=>x.v),c:kc},{n:'Current A',d:k.h.map(x=>x.i),c:css('--mu'),dash:1}])}</div>
-   <div class="c"><h2>Cell voltages</h2><div class="sm mu">Imbalance <b>${c.delta_mv} mV</b> (flag above ${TH.dWarn}). Green = balancing, red = weakest cell.</div>
-   <div class="cells">${bars}</div><div class="cl">${c.voltages_mv.map((_,i)=>`<span>${i+1}</span>`).join('')}</div></div></div>
-  <div class="g g2"><div class="c"><h2>State of charge &amp; temperature</h2>${line([{n:'SoC %',d:k.h.map(x=>x.soc),c:kc,min:0,max:100,dp:1},{n:'Temp °C',d:k.h.map(x=>x.T),c:css('--wn'),dp:1}])}</div>
-   <div class="c"><h2>Pack comparison</h2><table><tr><th>Pack</th><th>Cells</th><th>SoC</th><th>Cycles</th><th>Imbalance</th><th>Temp</th><th>Score</th><th>Status</th></tr>${rows}</table></div></div>
-  <div class="c"><h2>Last MQTT message</h2><pre>${JSON.stringify(m,null,1)}</pre></div>`;
-}
-function vHealth(){
-  const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
-  return`<div class="g g3" style="margin-bottom:12px">${ks.map(k=>{const h=health(k),m=k.last,r=(a,b)=>`<tr><td>${a}</td><td style="text-align:right"><b>${f(b)}</b></td></tr>`;
-    return`<div class="c" style="--kc:var(${COL[k.id]||'--tx'})"><b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span>
-    <div style="font-size:46px;font-weight:700;line-height:1.1">${f(h.sc)} <span class="chip ${h.st}">${h.st}</span></div><div class="mu sm">Health score out of 100</div>
-    <table>${r('State of health ,100)}${r('Cell imbalance',-h.pi)}${r('Temperature',-h.pt)}${r('Active faults',-h.pf)}</table>
-<div class="sm mu" style="margin-top:6px">Imbalance ${m.cells.delta_mv} mV, cycles ${m.pack.cycles}, max temp ${m.temps.max_c} °C. Weakest cell: C${m.cells.min_cell}.</div></div>`}).join('')}</div>
-}
-function vAlerts(){
-  const sev={critical:0,warning:1},al=[...ALARMS].sort((a,b)=>sev[a.sev]-sev[b.sev]||a.since-b.since);
-  const sim=CFG.mode==='sim'?`<div class="c"><h2>Simulate a fault (demo)</h2><div class="sm mu">Triggers the same alarms a real battery would.</div>
-   ${Object.keys(SPEC).map(id=>`<div style="margin:4px 0"><b>${id.replace('kit','').toUpperCase()}</b> ${[['heat','Overheat'],['weak','Weak cell'],['low','Low charge'],['off','Data loss']].map(([t,l])=>`<button class="b" data-a="inj" data-t="${t}" data-k="${id}">${l}</button>`).join(' ')}</div>`).join('')}</div>`:'';
-  return`<div class="c"><h2>Active issues</h2><div class="sm mu">Rules compare each reading with limits and with the cell history. The cause is a likely cause, not a proof.</div>
-  <table><tr><th>Severity</th><th>Kit</th><th>Issue</th><th>Likely cause</th><th>Suggested action</th><th>Since</th><th></th></tr>
-  ${al.map((a,i)=>`<tr style="${a.ack?'opacity:.55':''}"><td class="st ${a.sev}">${a.sev}</td><td><b>${K[a.kit].label}</b></td><td>${a.title}</td><td>${a.cause}</td><td>${a.action}</td><td>${hhmmss(a.since)}</td><td>${a.ack?'acked':`<button class="b" data-a="ack" data-k="${a.kit}" data-key="${a.key}">Acknowledge</button>`}</td></tr>`).join('')||'<tr><td colspan="7" class="mu">No active issues.</td></tr>'}</table></div>
-  ${sim}
-  <div class="c"><h2>History</h2><table><tr><th>Time</th><th>Kit</th><th>Event</th><th>Issue</th></tr>
-  ${HIST.slice(0,40).map(h=>`<tr><td>${hhmmss(h.t)}</td><td><b>${K[h.kit].label}</b></td><td class="st ${h.ev==='raised'?h.sev:'healthy'}">${h.ev}</td><td>${h.title}</td></tr>`).join('')||'<tr><td colspan="4" class="mu">Nothing yet.</td></tr>'}</table></div>`;
-}
-function vPerf(){
-  const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
-  const rows=ks.map(k=>{const cyc=k.cap?k.ahOut/k.cap:0,eff=k.eIn>1?k.eOut/k.eIn*100:null,up=Math.min(100,k.h.length/Math.max(1,(Date.now()-k.first)/1000)*100);
-    return`<tr><td style="color:var(${COL[k.id]||'--tx'})"><b>${k.label}</b></td><td>${f(k.eIn/1000,3)} kWh</td><td>${f(k.eOut/1000,3)} kWh</td><td>${eff==null?'n/a':f(eff,0)+' %'}</td><td>${f(cyc,2)}</td><td>${f(k.tSum/k.tN)} °C</td><td>${Math.round(k.peak)} W</td><td>${f(k.cap)} Ah</td></tr>`}).join('');
-  return`<div class="c"><h2>Power by kit</h2><div class="sm mu">Positive = charging, negative = discharging.</div>
-  ${line(ks.map(k=>({n:k.label,d:k.h.map(x=>x.w),c:css(COL[k.id]||'--tx'),dp:0})))}</div>
-  <div class="c"><h2>Kit comparison </h2><div class="sm mu"></div>
-  <table><tr><th>Kit</th><th>Energy in</th><th>Energy out</th><th>Out/in</th><th>Equiv. cycles</th><th>Avg temp</th><th>Peak power</th><th>Est. capacity</th></tr>${rows}</table>
-  <p><button class="b p" data-a="csv">Export history as CSV</button> <button class="b" data-a="reset">Reset counters</button></p></div>`;
-}
-/* ---- database tab ---- */
-const RANGES={'1h':36e5,'24h':864e5,'7d':6048e5};
-const dbq={table:'summary',kit:'all',range:'1h',src:'all'};
-const DBV={ver:0,drawn:-1,busy:false,again:false,err:'',rows:[],sum:[],ev:[],n:0,total:0,alarms:0,oldest:null,newest:null,usage:null};
-const dbOk=(q,r)=>(q.kit==='all'||r.kit===q.kit)&&(q.src==='all'||r.src===q.src);
-async function refreshDB(){
-  if(DBV.busy){DBV.again=true;return}
-  DBV.busy=true;await idb;
-  if(!DB){DBV.err='This browser blocks IndexedDB, so the database is unavailable (try a normal, non-private window).';DBV.busy=false;DBV.ver++;render();return}
-  await flush();
-  const q={...dbq},since=Date.now()-RANGES[q.range],bs=q.range==='1h'?6e4:q.range==='24h'?6e5:36e5,rows=[],B={},ev=[];let n=0;
-  await scan('readings',since,r=>{if(!dbOk(q,r))return;n++;if(rows.length<100)rows.push(r);
-    const t=Math.floor(r.t/bs)*bs,b=B[t+r.kit]||(B[t+r.kit]={t,kit:r.kit,label:r.label,src:r.src,n:0,v:0,i:0,w:0,soc:0,T:0,d:0});
-    b.n++;b.v+=r.v;b.i+=r.i;b.w+=r.w;b.soc+=r.soc;b.T=Math.max(b.T,r.T);b.d=Math.max(b.d,r.d)});
-  await scan('alarms',since,r=>{if(dbOk(q,r)&&ev.length<200)ev.push(r)});
-  Object.assign(DBV,{err:'',rows,ev,n,sum:Object.values(B).sort((a,b)=>b.t-a.t||a.kit.localeCompare(b.kit)),
-    total:await countAll('readings'),alarms:await countAll('alarms'),oldest:await edge('readings','next'),newest:await edge('readings','prev')});
-  try{DBV.usage=(await navigator.storage.estimate()).usage}catch(e){DBV.usage=null}
-  DBV.busy=false;DBV.ver++;render();
-  if(DBV.again){DBV.again=false;refreshDB()}
-}
-async function exportDB(){
-  await idb;await flush();const q={...dbq},r=['kit,time,source,voltage_v,current_a,power_w,soc_pct,temp_c,imbalance_mv'];
-  await scan('readings',Date.now()-RANGES[q.range],x=>{if(dbOk(q,x))r.push([x.label,new Date(x.t).toISOString(),x.src,x.v,x.i,x.w,x.soc,x.T,x.d].join(','))});
-  const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download='bhm-database.csv';l.click();
-}
-async function clearDB(){
-  if(!confirm('Delete ALL stored readings and alarm events from this browser?'))return;
-  await idb;if(!DB)return;RB=[];AB=[];
-  const tx=DB.transaction(['readings','alarms'],'readwrite');tx.objectStore('readings').clear();tx.objectStore('alarms').clear();
-  tx.oncomplete=()=>refreshDB();
-}
-function vDB(){
-  if(DBV.err)return`<div class="c"><b class="critical">${DBV.err}</b></div>`;
-  const o=(v,l,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`,ks=['all',...Object.keys(SPEC)];
-  const dt=t=>t?new Date(t).toLocaleString('en-GB'):'n/a',tm=t=>dbq.range==='1h'?hhmmss(t):dt(t),sr=x=>x==='sim'?'Simulated':'Live';
-  const kc=l=>`<td><b>${l}</b></td>`,mb=DBV.usage==null?'n/a':f(DBV.usage/1048576,1)+' MB';
-  const tb=`<div class="tb"><select data-f="table">${o('summary','Summary (averages)',dbq.table)}${o('readings','Raw readings',dbq.table)}${o('events','Alarm events',dbq.table)}</select>
-   <select data-f="kit">${ks.map(k=>o(k,k==='all'?'All kits':k.replace('kit','').toUpperCase(),dbq.kit)).join('')}</select>
-   <select data-f="range">${o('1h','Last hour',dbq.range)}${o('24h','Last 24 hours',dbq.range)}${o('7d','Last 7 days',dbq.range)}</select>
-   <select data-f="src">${o('all','Live + simulated',dbq.src)}${o('live','Live only',dbq.src)}${o('sim','Simulated only',dbq.src)}</select>
-   <button class="b" data-a="dbref">Refresh</button><button class="b p" data-a="dbcsv">Export CSV</button><button class="b" data-a="dbclr">Clear database</button></div>`;
-  const stats=[['Stored readings',DBV.total],['In this view',DBV.n],['Alarm events',DBV.alarms],['Oldest',dt(DBV.oldest)],['Newest',dt(DBV.newest)],['Browser storage',mb]]
-    .map(x=>`<div class="m" style="--kc:var(--c36)"><span class="mu sm">${x[0]}</span><b style="font-size:${String(x[1]).length>9?13:22}px">${x[1]}</b></div>`).join('');
-  let head,body;
-  if(dbq.table==='readings'){head='<th>Time</th><th>Kit</th><th>Voltage</th><th>Current</th><th>Power</th><th>SoC</th><th>Temp</th><th>Imbalance</th><th>Source</th>';
-    body=DBV.rows.map(r=>`<tr><td>${tm(r.t)}</td>${kc(r.label)}<td>${f(r.v,2)} V</td><td>${f(r.i,2)} A</td><td>${Math.round(r.w)} W</td><td>${f(r.soc)} %</td><td>${r.T} °C</td><td>${r.d} mV</td><td>${sr(r.src)}</td></tr>`).join('')}
-  else if(dbq.table==='events'){head='<th>Time</th><th>Kit</th><th>Event</th><th>Issue</th><th>Severity</th><th>Source</th>';
-    body=DBV.ev.map(r=>`<tr><td>${tm(r.t)}</td>${kc(r.label)}<td class="st ${r.ev==='raised'?r.sev:'healthy'}">${r.ev}</td><td>${r.title}</td><td class="${r.sev}">${r.sev}</td><td>${sr(r.src)}</td></tr>`).join('')}
-  else{head='<th>Time</th><th>Kit</th><th>Samples</th><th>Avg V</th><th>Avg A</th><th>Avg power</th><th>Avg SoC</th><th>Max temp</th><th>Max imbalance</th><th>Source</th>';
-    body=DBV.sum.slice(0,100).map(b=>`<tr><td>${tm(b.t)}</td>${kc(b.label)}<td>${b.n}</td><td>${f(b.v/b.n,2)} V</td><td>${f(b.i/b.n,2)} A</td><td>${Math.round(b.w/b.n)} W</td><td>${f(b.soc/b.n,0)} %</td><td>${b.T} °C</td><td>${b.d} mV</td><td>${sr(b.src)}</td></tr>`).join('')}
-  const ids=[...new Set(DBV.sum.map(b=>b.kit))],ch=line(ids.map(id=>({n:K[id]?K[id].label:id,d:DBV.sum.filter(b=>b.kit===id).reverse().map(b=>b.w/b.n),c:css(COL[id]||'--tx'),dp:0})));
-  const cols=head.split('<th>').length-1;
-  return`<div class="c"><h2>Database</h2><div class="sm mu">Every kit is saved about every ${SAVE_EVERY/1000} s, plus every alarm raised or cleared. Data stays in this browser after you close the page and is deleted after ${RETAIN/864e5} days.</div></div>
-  ${tb}<div class="g g6" style="margin-bottom:12px">${stats}</div>
-  <div class="c"><h2>Average power in this view</h2><div class="sm mu">Positive = charging, negative = discharging.</div>${ch}</div>
-  <div class="c"><h2>${{summary:,readings:'Latest 100 raw readings',events:'Alarm events (latest 200)'}[dbq.table]}</h2>
-  <table><tr>${head}</tr>${body||`<tr><td colspan="${cols}" class="mu">No data stored for this selection yet.</td></tr>`}</table></div>`;
-}
-
-/* ============ render loop & events ============ */
-function render(){
-  $('#tabs').innerHTML=TABS.map(([id,l])=>`<button class="tab ${tab===id?'on':''}" data-a="tab" data-t="${id}">${l}${id==='alerts'&&ALARMS.length?`<span class="badge">${ALARMS.filter(a=>!a.ack).length}</span>`:''}</button>`).join('');
-  const live=CFG.mode==='mqtt',ok=live?conn==='connected':true;
-  $('#pill').innerHTML=`<span class="pill"><span class="dot ${ok?'on':'bad'}"></span>${live?'Live MQTT: '+conn:'Simulator running'}</span>`;
-  if(tab==='db'){if(DBV.drawn===DBV.ver)return;DBV.drawn=DBV.ver}
-  $('#view').innerHTML={overview:vOverview,health:vHealth,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
-}
-document.addEventListener('change',e=>{const x=e.target.closest('[data-f]');if(x){dbq[x.dataset.f]=x.value;refreshDB()}});
-document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
-  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}}
-  else if(a==='sel'){sel=b.dataset.k}
-  else if(a==='ack'){const x=ALARMS.find(z=>z.kit===b.dataset.k&&z.key===b.dataset.key);if(x)x.ack=true}
-  else if(a==='inj'){inject(b.dataset.t,b.dataset.k)}
-  else if(a==='reset'){Object.values(K).forEach(k=>{k.eIn=k.eOut=k.ahOut=k.peak=k.tSum=k.tN=0;k.first=Date.now()})}
-  else if(a==='csv'){const r=['kit,time,voltage_v,current_a,power_w,soc_pct,temp_c,imbalance_mv'];
-    Object.values(K).forEach(k=>k.h.forEach(x=>r.push([k.label,new Date(x.t).toISOString(),x.v,x.i,x.w,x.soc,x.T,x.d].join(','))));
-    const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download='bhm-history.csv';l.click()}
-  else if(a==='dbref'){refreshDB()}
-  else if(a==='dbcsv'){exportDB()}
-  else if(a==='dbclr'){clearDB()}
-  render();
+BATTERIES.forEach((b)=>{
+ P[b.id]={
+  id:b.id,name:b.name,col:b.col,
+  received:false,V:0,i:0,P:0,t:0,soc:0,
+  soh:null,cycles:0,remaining:0,
+  state:"unknown",faults:[],faultCode:0,
+  cells:[],imb:0,history:{l:[],v:[],i:[]},
+  pts:[]
+ };
 });
-let tk=0;start();render();purge();
-setInterval(()=>{Object.values(K).forEach(reconcile);tk++;if(tk%2===0)flush();if(tk%600===0)purge();if(tab==='db'&&tk%5===0)refreshDB();render()},1000);
-addEventListener('beforeunload',flush);
+
+// ==========================================
+// 2. HELPER FUNCTIONS
+// ==========================================
+
+const $ = (id)=>document.getElementById(id);
+
+function css(name){
+ return getComputedStyle(document.documentElement)
+  .getPropertyValue(name).trim();
+}
+
+function f(value,digits=2){
+ const n=Number(value);
+ return Number.isFinite(n)?n.toFixed(digits):"--";
+}
+
+function batteryIndex(id){
+ return BATTERIES.findIndex(b=>b.id===id);
+}
+
+function timeLabel(ts){
+ const d=ts?new Date(ts):new Date();
+ return d.toLocaleTimeString();
+}
+
+function sc(status){
+ if(status==="Alarm")return "bad";
+ if(status==="Warning")return "warn";
+ return "ok";
+}
+
+function setConnection(state){
+ const dot=$("connectionDot");
+ const label=$("connectionText");
+
+ if(state==="connected"){
+  dot.style.background=css("--ok");
+  label.textContent="Server connected";
+ }else if(state==="connecting"){
+  dot.style.background=css("--warn");
+  label.textContent="Connecting...";
+ }else{
+  dot.style.background=css("--bad");
+  label.textContent="Disconnected";
+ }
+}
+
+// ==========================================
+// 3. CHART THEME
+// ==========================================
+
+function theme(){
+ Chart.defaults.color=css("--mut");
+ Chart.defaults.borderColor=css("--line");
+ Chart.defaults.font.family="Manrope,system-ui,sans-serif";
+}
+
+// ==========================================
+// 4. INITIALIZE CHARTS
+// ==========================================
+
+function mk(){
+ theme();
+
+ live=new Chart($("cLive"),{
+  type:"line",
+  data:{
+   labels:[],
+   datasets:[
+    {
+     label:"Voltage (V)",
+     data:[],
+     yAxisID:"y",
+     pointRadius:0,
+     tension:.3,
+     borderWidth:2,
+     borderColor:css("--c12")
+    },
+    {
+     label:"Current (A)",
+     data:[],
+     yAxisID:"y1",
+     pointRadius:0,
+     tension:.3,
+     borderWidth:2,
+     borderDash:[5,3]
+    }
+   ]
+  },
+  options:{
+   maintainAspectRatio:false,
+   animation:false,
+   interaction:{mode:"index",intersect:false},
+   scales:{
+    x:{ticks:{maxTicksLimit:6}},
+    y:{
+     position:"left",
+     title:{display:true,text:"Voltage (V)"}
+    },
+    y1:{
+     position:"right",
+     grid:{drawOnChartArea:false},
+     title:{display:true,text:"Current (A)"}
+    }
+   },
+   plugins:{legend:{labels:{boxWidth:14}}}
+  }
+ });
+
+ cell=new Chart($("cCell"),{
+  type:"bar",
+  data:{
+   labels:[],
+   datasets:[{
+    label:"Cell voltage (V)",
+    data:[],
+    borderRadius:3
+   }]
+  },
+  options:{
+   maintainAspectRatio:false,
+   animation:false,
+   scales:{y:{}},
+   plugins:{legend:{display:false}}
+  }
+ });
+
+ soh=new Chart($("cSoh"),{
+  type:"scatter",
+  data:{
+   datasets:[{
+    label:"Measured SoH (%)",
+    data:[],
+    pointRadius:3
+   }]
+  },
+  options:{
+   maintainAspectRatio:false,
+   animation:false,
+   scales:{
+    x:{title:{display:true,text:"Cycles"}},
+    y:{
+     min:0,max:100,
+     title:{display:true,text:"SoH (%)"}
+    }
+   },
+   plugins:{legend:{labels:{boxWidth:14}}}
+  }
+ });
+}
+
+// ==========================================
+// 5. BATTERY TAB CREATION
+// ==========================================
+
+function renderTabs(){
+ $("tabs").innerHTML=BATTERIES.map((b,i)=>{
+  const p=P[b.id];
+  const color=css(b.col);
+  const status=p.received?p.state:"Waiting for data";
+  const percent=p.received?f(p.soc,0):"--";
+
+  return `
+   <button class="tab ${i===cur?"on":""}"
+    style="--pc:${color}" onclick="pick(${i})">
+    <b>${b.name}</b>
+    <div class="sub">${status}</div>
+    <div class="sub">SoC: ${percent}%</div>
+    <div class="bar">
+     <span style="width:${p.received?Math.max(0,Math.min(100,p.soc)):0}%;
+      background:${color}"></span>
+    </div>
+   </button>`;
+ }).join("");
+}
+
+// ==========================================
+// 6. SELECT BATTERY
+// ==========================================
+
+function pick(i){
+ cur=i;
+ renderTabs();
+ render();
+}
+
+// ==========================================
+// 7. PROCESS MQTT TELEMETRY
+// ==========================================
+
+function handleTelemetry(data){
+
+ if(typeof data==="string"){
+  data=JSON.parse(data);
+ }
+
+ // Accept either a direct payload or an MQTT wrapper.
+ let payload=data.payload??data.message??data;
+
+ if(typeof payload==="string"){
+  payload=JSON.parse(payload);
+ }
+
+ const id=payload.battery_id;
+ const index=batteryIndex(id);
+
+ if(index<0)return;
+
+ const p=P[id];
+
+ if(!payload.pack)return;
+
+ const pack=payload.pack;
+ const cells=payload.cells||{};
+ const temps=payload.temps||{};
+
+ const ts=payload.ts||new Date().toISOString();
+
+ p.received=true;
+ p.V=Number(pack.voltage_v)||0;
+ p.i=Number(pack.current_a)||0;
+ p.P=Number(pack.power_w??(p.V*p.i))||0;
+ p.soc=Number(pack.soc_pct)||0;
+ p.remaining=Number(pack.remaining_ah)||0;
+ p.cycles=Number(pack.cycles)||0;
+ p.state=pack.state||"unknown";
+
+ p.t=Number(temps.max_c??0);
+ p.cells=(cells.voltages_mv||[]).map(v=>Number(v)/1000);
+ p.imb=Number(cells.delta_mv)||0;
+
+ p.soh=Number.isFinite(Number(pack.soh_pct))&&
+  pack.soh_pct!==null?Number(pack.soh_pct):null;
+
+ p.faults=Array.isArray(payload.faults)?payload.faults:[];
+ p.faultCode=Number(payload.fault_code)||0;
+
+ // Keep a 60-reading history.
+ p.history.l.push(timeLabel(ts));
+ p.history.v.push(p.V);
+ p.history.i.push(p.i);
+
+ if(p.history.l.length>60){
+  p.history.l.shift();
+  p.history.v.shift();
+  p.history.i.shift();
+ }
+
+ // SoH history is shown only when supplied.
+ if(p.soh!==null){
+  p.pts.push({x:p.cycles,y:p.soh});
+  if(p.pts.length>100)p.pts.shift();
+ }
+
+ $("payload").textContent=JSON.stringify(payload,null,2);
+
+ $("topic").textContent=
+  "Topic: bhm/"+(payload.site||"lab1")+"/"+id+"/telemetry";
+
+ renderTabs();
+ render();
+ updateComparison();
+}
+
+// ==========================================
+// 8. PROCESS ALARM MESSAGES
+// ==========================================
+
+function handleAlarm(data){
+
+ let payload=data.payload??data.message??data;
+
+ if(typeof payload==="string"){
+  try{payload=JSON.parse(payload)}catch(e){return}
+ }
+
+ const id=payload.battery_id||
+  (data.topic?data.topic.split("/")[2]:"Unknown");
+
+ const now=new Date().toLocaleTimeString();
+
+ const events=[];
+
+ (payload.raised||[]).forEach(x=>events.push("Raised: "+x));
+ (payload.cleared||[]).forEach(x=>events.push("Cleared: "+x));
+
+ if(events.length===0&&payload.fault_code){
+  events.push("Fault code: "+payload.fault_code);
+ }
+
+ events.forEach(event=>{
+  LOG.unshift({
+   t:now,p:id,m:event,lv:event.startsWith("Raised")?"bad":"ok"
+  });
+ });
+
+ if(LOG.length>50)LOG.length=50;
+
+ renderAlarms();
+}
+
+// ==========================================
+// 9. WEBSOCKET MESSAGE HANDLER
+// ==========================================
+
+function processMessage(event){
+
+ let data;
+
+ try{
+  data=JSON.parse(event.data);
+ }catch(e){
+  console.error("Invalid WebSocket JSON:",e);
+  return;
+ }
+
+ // Supported message forms:
+ // {topic:"bhm/lab1/kit12v/telemetry", payload:{...}}
+ // {type:"telemetry", payload:{...}}
+ // Direct schema-1 telemetry payload.
+
+ const topic=data.topic||"";
+ const type=data.type||"";
+
+ if(topic.endsWith("/alarm")||type==="alarm"){
+  handleAlarm(data);
+  return;
+ }
+
+ if(topic.endsWith("/status")||type==="status"){
+  const payload=data.payload||data;
+  console.log("Battery status:",payload);
+  return;
+ }
+
+ if(topic.endsWith("/telemetry")||
+    type==="telemetry"||
+    data.battery_id){
+  handleTelemetry(data);
+  return;
+ }
+
+ if(type==="gateway_health"||topic.endsWith("/health")){
+  console.log("Gateway health:",data);
+ }
+}
+
+// ==========================================
+// 10. CONNECT TO BACKEND WEBSOCKET
+// ==========================================
+
+function connectWebSocket(){
+
+ clearTimeout(reconnectTimer);
+ setConnection("connecting");
+
+ try{
+  socket=new WebSocket(WS_URL);
+ }catch(e){
+  console.error("WebSocket creation failed:",e);
+  setConnection("disconnected");
+  scheduleReconnect();
+  return;
+ }
+
+ socket.onopen=()=>{
+  console.log("BHM WebSocket connected");
+  reconnectDelay=2000;
+  setConnection("connected");
+ };
+
+ socket.onmessage=processMessage;
+
+ socket.onerror=(error)=>{
+  console.error("WebSocket error:",error);
+ };
+
+ socket.onclose=()=>{
+  setConnection("disconnected");
+  scheduleReconnect();
+ };
+}
+
+function scheduleReconnect(){
+ clearTimeout(reconnectTimer);
+ reconnectTimer=setTimeout(()=>{
+  connectWebSocket();
+ },reconnectDelay);
+
+ reconnectDelay=Math.min(reconnectDelay*2,30000);
+}
+
+// ==========================================
+// 11. MAIN DASHBOARD RENDER
+// ==========================================
+
+function render(){
+
+ const battery=BATTERIES[cur];
+ const p=P[battery.id];
+ const c=css(battery.col);
+
+ document.documentElement.style.setProperty("--pc",c);
+
+ if(!p.received){
+  $("kpis").innerHTML=`
+   <div class="k" style="--pc:${c}">
+    <small>Battery status</small>
+    <div>Waiting</div>
+   </div>`;
+  $("cellNote").textContent="Waiting for cell voltage data...";
+  $("rul").textContent="Waiting for SoH data...";
+  live.data.labels=[];
+  live.data.datasets[0].data=[];
+  live.data.datasets[1].data=[];
+  live.update("none");
+  cell.data.labels=[];
+  cell.data.datasets[0].data=[];
+  cell.update("none");
+  soh.data.datasets[0].data=[];
+  soh.update("none");
+  renderAlarms();
+  return;
+ }
+
+ $("kpis").innerHTML=[
+  ["Voltage",f(p.V),"V"],
+  ["Current",f(p.i),"A"],
+  ["Power",f(p.P,1),"W"],
+  ["Temperature",f(p.t,1),"°C"],
+  ["State of charge",f(p.soc,1),"%"]
+ ].map(k=>`
+  <div class="k" style="--pc:${c}">
+   <small>${k[0]}</small>
+   <div>${k[1]}<em>${k[2]}</em></div>
+  </div>`).join("");
+
+ // Live voltage and current.
+ live.data.labels=p.history.l;
+ live.data.datasets[0].data=p.history.v;
+ live.data.datasets[1].data=p.history.i;
+ live.data.datasets[0].borderColor=c;
+ live.data.datasets[1].borderColor=css("--mut");
+ live.update("none");
+
+ // Cell voltage chart.
+ cell.data.labels=p.cells.map((v,i)=>"C"+(i+1));
+ cell.data.datasets[0].data=p.cells;
+ cell.data.datasets[0].backgroundColor=p.cells.map(v=>
+  (p.imb>50&&v===Math.min(...p.cells))?
+   css("--bad"):c
+ );
+ cell.options.scales.y.min=p.cells.length?
+  Math.max(0,Math.min(...p.cells)-0.1):undefined;
+ cell.update("none");
+
+ $("cellNote").innerHTML=
+  "Imbalance (max minus min): <b class='"+
+  (p.imb>50?"warn":"ok")+"'>"+
+  f(p.imb,0)+" mV</b>. Flagged above 50 mV.";
+
+ // SoH chart: no fabricated values.
+ soh.data.datasets[0].data=p.pts;
+ soh.data.datasets[0].backgroundColor=c;
+ soh.data.datasets[0].borderColor=c;
+ soh.update("none");
+
+ $("rul").textContent=p.soh===null?
+  "SOH is not included in the received telemetry.": 
+  "Latest reported SoH: "+f(p.soh,1)+"%.";
+ 
+ renderAlarms();
+}
+
+// ==========================================
+// 12. COMPARISON TABLE
+// ==========================================
+
+function updateComparison(){
+
+ $("cmp").innerHTML=BATTERIES.map(b=>{
+  const p=P[b.id];
+
+  if(!p.received){
+   return `<tr><td>${b.id}</td><td colspan="8">Waiting for telemetry</td></tr>`;
+  }
+
+  const status=p.faults.length?"Alarm":"Normal";
+
+  return `
+   <tr>
+    <td class="b">${b.id}</td>
+    <td>${f(p.V)} V</td>
+    <td>${f(p.i)} A</td>
+    <td>${f(p.soc,1)}%</td>
+    <td>${f(p.t,1)} °C</td>
+    <td>${p.cycles}</td>
+    <td>${f(p.imb,0)} mV</td>
+    <td>${p.state}</td>
+    <td class="${p.faults.length?"bad":"ok"}">
+     ${p.faults.length?status:"Normal"}
+    </td>
+   </tr>`;
+ }).join("");
+}
+
+// ==========================================
+// 13. ALARM TABLE
+// ==========================================
+
+function renderAlarms(){
+
+ $("alog").innerHTML=LOG.length?
+  LOG.map(l=>`
+   <tr>
+    <td>${l.t}</td>
+    <td class="b">${l.p}</td>
+    <td class="${l.lv}">${l.m}</td>
+   </tr>`).join("")
+  :'<tr><td colspan="3">No alarms received.</td></tr>';
+}
+
+// ==========================================
+// 14. START DASHBOARD
+// ==========================================
+
+mk();
+renderTabs();
+render();
+updateComparison();
+connectWebSocket();
+
+window.addEventListener("beforeunload",()=>{
+ if(socket)socket.close();
+});
+
+if(window.matchMedia){
+ window.matchMedia("(prefers-color-scheme: dark)")
+  .addEventListener("change",()=>{
+   theme();
+   render();
+  });
+}
+
 </script>
 </body>
 </html>
