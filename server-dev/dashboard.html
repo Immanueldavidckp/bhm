@@ -1,145 +1,368 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Battery Health Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Battery health monitoring system</title>
 <style>
-:root{--bg:#f1f4f2;--card:#fff;--ink:#14211d;--mut:#5d6b66;--line:#d9e1dd;--c12:#b87400;--c36:#00796e;--c48:#5846d0;--ok:#1f8f4e;--warn:#b7791f;--bad:#c53030;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1411;--card:#142019;--ink:#e6efeb;--mut:#92a39c;--line:#25362e;--c12:#f0b429;--c36:#2dd4bf;--c48:#a597ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}}
-:root[data-theme="dark"]{--bg:#0c1411;--card:#142019;--ink:#e6efeb;--mut:#92a39c;--line:#25362e;--c12:#f0b429;--c36:#2dd4bf;--c48:#a597ff;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.45 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1180px;margin:0 auto;padding:18px 14px 40px}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px}
-h1{font-size:22px;font-weight:800;margin:0}
-.sub{color:var(--mut);font-size:13px}
-.pill{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600}
-.pill i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px}
-.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px}
-.tab{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:10px 14px;text-align:left;color:inherit;font:inherit;cursor:pointer}
-.tab:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.tab b{font-size:16px;font-weight:800}
-.tab .bar{height:6px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}
-.tab .bar span{display:block;height:100%}
-.tab.on{border-color:var(--pc)}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
-.k{background:var(--card);border-left:4px solid var(--pc);border-radius:8px;padding:10px 14px}
-.k small{color:var(--mut);font-weight:600}
-.k div{font-size:26px;font-weight:800;line-height:1.2}
-.k em{font-style:normal;font-size:13px;font-weight:600;color:var(--mut);margin-left:3px}
-.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:12px}
-.card{background:var(--card);border-radius:10px;padding:14px;min-width:0}
-.card h2{font-size:15px;font-weight:800;margin:0 0 2px}
-.card p{margin:0 0 8px;color:var(--mut);font-size:12.5px}
-.cv{position:relative;height:240px}
-.scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
-th{color:var(--mut);font-weight:600}
-.b{font-weight:700}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-pre{margin:0;background:var(--bg);border-radius:8px;padding:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
-@media (max-width:420px){.g2{grid-template-columns:1fr}}
-.pill.stale i{background:var(--warn)}.pill.down i{background:var(--bad)}
-.tab.off{opacity:.65}
-.empty{color:var(--mut);padding:30px 0;text-align:center}
-#alog td:last-child{white-space:normal;min-width:220px}
-</style></head><body><main>
-<header><div><h1>Battery health monitor</h1>
-<div class="sub">12 V, 36 V and 48 V LiFePO4 kits (Daly BMS) reporting through the STM32MP135 gateway over MQTT/TLS. Kits are simulated until the real BMSes are wired.</div></div>
-<span class="pill down" id="pill"><i></i><span id="pillText">Connecting…</span></span></header>
-
-<div class="tabs" id="tabs"><div class="empty">Loading…</div></div>
-<div class="kpis" id="kpis"></div>
-
-<div class="g2">
- <div class="card"><h2>Live voltage and current</h2><p>Last 10 minutes. Positive current means charging, negative means discharging.</p><div class="cv"><canvas id="cLive"></canvas></div></div>
- <div class="card"><h2>Cell voltages</h2><p id="cellNote"></p><div class="cv"><canvas id="cCell"></canvas></div></div>
+:root{--bg:#f1f3f2;--card:#fff;--tx:#14201c;--mu:#5d6b66;--ln:#dfe4e2;--ok:#1b8a52;--wa:#b87400;--wn:#d9590b;--cr:#c62f2f;--c12:#b87400;--c36:#0f8577;--c48:#5b45c9;--dk:#14201c}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1513;--card:#192320;--tx:#e8efec;--mu:#9aaba5;--ln:#2a3833;--ok:#3fcf86;--wa:#e0a030;--wn:#f08a4b;--cr:#ef6b6b;--c12:#e0a030;--c36:#3cc5b3;--c48:#9d8cf5;--dk:#e8efec}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.w{max-width:1280px;margin:0 auto;padding:20px}
+h1{font-size:24px;margin:0}h2{font-size:15px;margin:0 0 4px}.mu{color:var(--mu)}.sm{font-size:12px}
+.top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.pill{border:1px solid var(--ln);background:var(--card);border-radius:99px;padding:4px 12px;font-weight:600;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mu)}.dot.on{background:var(--ok)}.dot.bad{background:var(--cr)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.tab{border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:99px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
+.tab.on{background:var(--dk);color:var(--bg);border-color:var(--dk)}
+.badge{background:var(--cr);color:#fff;border-radius:99px;padding:0 6px;font-size:11px;margin-left:4px}
+.g{display:grid;gap:12px}.g3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}.g6{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.c{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:12px;overflow-x:auto}.g>.c{margin:0}
+.kit{cursor:pointer;border:2px solid transparent}.kit.sel{border-color:var(--kc)}
+.bar{height:6px;border-radius:4px;background:var(--ln);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%}
+.m{border-left:3px solid var(--kc);border-radius:8px;background:var(--card);padding:8px 12px}.m b{font-size:22px;display:block}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:top}th{color:var(--mu);font-weight:600;font-size:12px}
+.st{font-weight:700}.Healthy,.healthy{color:var(--ok)}.Watch{color:var(--wa)}.Warning,.warning{color:var(--wn)}.Critical,.critical{color:var(--cr)}
+.chip{border:1px solid var(--ln);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;margin:2px 4px 2px 0;display:inline-block}
+.chip.ok{color:var(--ok)}.chip.off{color:var(--mu)}
+button.b{border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
+button.b:hover{border-color:var(--tx)}button.p{background:var(--dk);color:var(--bg)}
+.cells{display:flex;gap:4px;align-items:flex-end;height:120px;margin-top:8px}.cells div{flex:1;min-width:6px;border-radius:3px 3px 0 0;position:relative}
+.cl{display:flex;gap:4px;font-size:10px;color:var(--mu)}.cl span{flex:1;text-align:center;min-width:6px}
+svg{width:100%;height:auto;display:block}
+input,select{font:inherit;padding:6px 8px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);width:100%}
+label{display:block;font-size:12px;color:var(--mu);margin:8px 0 2px}
+#toasts{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:9;max-width:340px}
+.toast{background:var(--card);border-left:4px solid var(--wn);box-shadow:0 4px 18px #0003;padding:10px 12px;border-radius:8px}
+.toast.critical{border-color:var(--cr)}
+.tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.tb select{width:auto}
+pre{background:var(--bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;max-height:260px}
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="top">
+    <div><h1>Battery health monitoring system</h1><div class="mu">12 V, 36 V and 48 V LiFePO4 kits monitored through a gateway board and MQTT</div></div>
+    <div id="pill"></div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
 </div>
-<div class="g2">
- <div class="card"><h2>State of charge, last 6 hours</h2><p>SOC reported by the BMS (coulomb counting). State of health needs capacity tests over many cycles and is not measured yet.</p><div class="cv"><canvas id="cSoc"></canvas></div></div>
- <div class="card"><h2>Alarm log</h2><p>BMS alarms when raised and cleared, and when a kit goes offline or comes back.</p>
-  <div class="scroll"><table><thead><tr><th>Time</th><th>Pack</th><th>Event</th></tr></thead><tbody id="alog"></tbody></table></div></div>
-</div>
-<div class="card" style="margin-bottom:12px"><h2>Pack comparison</h2><p>Latest reading of every kit. Imbalance is the highest minus the lowest cell voltage.</p>
- <div class="scroll"><table><thead><tr><th>Pack</th><th>Config</th><th>SoC</th><th>Remaining</th><th>Cycles</th><th>Imbalance</th><th>Max temp</th><th>Charge / discharge MOS</th><th>Faults</th><th>Status</th></tr></thead><tbody id="cmp"></tbody></table></div></div>
-<div class="card"><h2>Latest reading from the gateway</h2><p id="topic"></p><pre id="payload"></pre></div>
-</main>
+<div id="toasts"></div>
+
+<!-- MQTT over WebSocket client (only needed for live mode) -->
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
 <script>
-const $=s=>document.querySelector(s),css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const f=(x,d=1)=>x==null?'–':(+x).toFixed(d);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const STALE_S=40;                                  // gateway reads every 10 s
-const T=iso=>iso?new Date(iso):null;
-const hm=d=>d?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'–';
-const ago=s=>s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':Math.round(s/3600)+' h';
-const nice=n=>String(n).replace(/_l([12])$/,' L$1').replace(/_/g,' ');
-let P=[],cur=null,now=new Date(),live,cell,socC;
+/* ============ config & helpers ============ */
+const $=s=>document.querySelector(s);
+/* ---- CONFIG: edit here or use the URL, e.g. ?mode=mqtt&url=wss://host:9001&user=dash&pass=secret ---- */
+const P=new URLSearchParams(location.search);
+const CFG={mode:P.get('mode')==='mqtt'?'mqtt':'sim',url:P.get('url')||'ws://localhost:9001',user:P.get('user')||'',pass:P.get('pass')||'',topic:P.get('topic')||'bhm/+/+/telemetry',sound:P.get('sound')==='1'};
+const TH={tWarn:45,tCrit:55,dWarn:50,dCrit:150,cLow:3000,cHigh:3650,socWarn:20,socCrit:10,stale:10};
+const SRC=CFG.mode==='sim'?'sim':'live';
+const RETAIN=7*864e5,SAVE_EVERY=10000;
+const COL={kit12v:'--c12',kit36v:'--c36',kit48v:'--c48'};
+const hhmmss=d=>new Date(d).toLocaleTimeString('en-GB');
+const f=(v,n=1)=>v==null||isNaN(v)?'n/a':(+v).toFixed(n);
+const dur=h=>!isFinite(h)||h<=0?'n/a':h>=1?`${Math.floor(h)} h ${Math.round(h%1*60)} min`:`${Math.round(h*60)} min`;
+let tab='overview',sel=null,conn='idle',K={},ALARMS=[],HIST=[];
 
-function colOf(p){const v=+p.nominal_voltage;return v<20?'--c12':v<45?'--c36':'--c48'}
-function nameOf(p){const m=/(\d+)\s*v/i.exec(p.battery_id);return m?m[1]+' V kit':p.battery_id}
-function ageOf(p){return (now-T(p.ts))/1000}
-function statusOf(p){
-  if((p.link&&p.link.state==='offline')||ageOf(p)>STALE_S)return 'Offline';
-  const fl=p.faults||[];
-  if(fl.some(x=>/_l2$|fault|err|fail/.test(x)))return 'Alarm';
-  if(fl.length)return 'Warning';
-  return 'Normal'}
-const sc=s=>s==='Alarm'||s==='Offline'?'bad':s==='Warning'?'warn':'ok';
+/* ============ database (IndexedDB, persists across reloads) ============ */
+let DB=null,RB=[],AB=[];
+const idb=new Promise(res=>{try{const r=indexedDB.open('bhm',1);
+  r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('readings',{autoIncrement:true}).createIndex('t','t');d.createObjectStore('alarms',{autoIncrement:true}).createIndex('t','t')};
+  r.onsuccess=()=>{DB=r.result;res(DB)};r.onerror=()=>res(null)}catch(e){res(null)}});
+function flush(){return new Promise(res=>{if(!DB||(!RB.length&&!AB.length))return res();
+  const r=RB.splice(0),a=AB.splice(0),tx=DB.transaction(['readings','alarms'],'readwrite');
+  r.forEach(x=>tx.objectStore('readings').add(x));a.forEach(x=>tx.objectStore('alarms').add(x));
+  tx.oncomplete=tx.onerror=tx.onabort=()=>res()})}
+function scan(store,since,fn){return new Promise(res=>{if(!DB)return res();
+  const q=DB.transaction(store).objectStore(store).index('t').openCursor(IDBKeyRange.lowerBound(since),'prev');
+  q.onsuccess=()=>{const c=q.result;if(c){fn(c.value);c.continue()}else res()};q.onerror=()=>res()})}
+function edge(store,dir){return new Promise(res=>{if(!DB)return res(null);
+  const q=DB.transaction(store).objectStore(store).index('t').openCursor(null,dir);q.onsuccess=()=>res(q.result?q.result.value.t:null);q.onerror=()=>res(null)})}
+function countAll(store){return new Promise(res=>{if(!DB)return res(0);const q=DB.transaction(store).objectStore(store).count();q.onsuccess=()=>res(q.result);q.onerror=()=>res(0)})}
+async function purge(){await idb;if(!DB)return;
+  ['readings','alarms'].forEach(st=>{const q=DB.transaction(st,'readwrite').objectStore(st).index('t').openCursor(IDBKeyRange.upperBound(Date.now()-RETAIN));
+    q.onsuccess=()=>{const c=q.result;if(c){c.delete();c.continue()}}})}
 
-function theme(){Chart.defaults.color=css('--mut');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family='Manrope,system-ui,sans-serif'}
-function mk(){theme();
-live=new Chart($('#cLive'),{type:'line',data:{labels:[],datasets:[{label:'Voltage (V)',data:[],yAxisID:'y',pointRadius:0,tension:.3,borderWidth:2},{label:'Current (A)',data:[],yAxisID:'y1',pointRadius:0,tension:.3,borderWidth:2,borderDash:[5,3]}]},
-options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{maxTicksLimit:6}},y:{position:'left',title:{display:true,text:'V'}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'A'}}},plugins:{legend:{labels:{boxWidth:14}}}}});
-cell=new Chart($('#cCell'),{type:'bar',data:{labels:[],datasets:[{label:'Cell voltage (V)',data:[],borderRadius:3}]},options:{maintainAspectRatio:false,animation:false,scales:{y:{min:2.4,max:3.7}},plugins:{legend:{display:false}}}});
-socC=new Chart($('#cSoc'),{type:'line',data:{labels:[],datasets:[{label:'SOC (%)',data:[],pointRadius:0,tension:.2,borderWidth:2,fill:false}]},options:{maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},scales:{x:{ticks:{maxTicksLimit:7}},y:{min:0,max:100,title:{display:true,text:'SOC %'}}},plugins:{legend:{display:false}}}});}
+/* ============ state per kit ============ */
+function kit(id){return K[id]||(K[id]={id,label:id.replace('kit','').toUpperCase(),last:null,seen:0,lastTs:0,h:[],eIn:0,eOut:0,ahOut:0,peak:0,tSum:0,tN:0,first:Date.now(),dev:[],n:0,cap:0})}
 
-async function get(u){const r=await fetch(location.origin+u,{cache:'no-store',credentials:'same-origin'});if(!r.ok)throw new Error(u+': '+r.status);return r.json()}
+function ingest(m){
+  if(!m||!m.battery_id||!m.pack||!m.cells||!m.temps)return;
+  const k=kit(m.battery_id),p=m.pack,c=m.cells,now=Date.now();
+  const ts=Date.parse(m.ts)||now;
+  if(k.lastTs&&ts>k.lastTs){const dt=Math.min((ts-k.lastTs)/3.6e6,0.1);
+    if(p.power_w>0)k.eIn+=p.power_w*dt;else k.eOut+=-p.power_w*dt;
+    if(p.current_a<0)k.ahOut+=-p.current_a*dt}
+  k.lastTs=ts;k.last=m;k.seen=now;k.n=c.count;
+  if(p.soc_pct>5)k.cap=p.remaining_ah/(p.soc_pct/100);
+  k.peak=Math.max(k.peak,Math.abs(p.power_w));k.tSum+=m.temps.max_c;k.tN++;
+  const avg=c.voltages_mv.reduce((a,b)=>a+b,0)/c.voltages_mv.length;
+  c.voltages_mv.forEach((v,i)=>k.dev[i]=(k.dev[i]==null?v-avg:k.dev[i]*.97+(v-avg)*.03));
+  k.h.push({t:now,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv});
+  if(k.h.length>240)k.h.shift();
+  if(now-(k.sv||0)>=SAVE_EVERY){k.sv=now;RB.push({t:now,kit:k.id,label:k.label,src:SRC,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv})}
+  if(!sel)sel=k.id;
+  reconcile(k);
+}
 
-async function loadSummary(){
-  try{const d=await get('/api/summary');now=T(d.now)||new Date();P=d.packs;
-    if(!cur||!P.find(p=>p.battery_id===cur))cur=P.length?P[0].battery_id:null;
-    const newest=P.reduce((a,p)=>Math.max(a,T(p.ts)),0),age=(now-newest)/1000;
-    const pill=$('#pill');
-    if(!P.length){pill.className='pill stale';$('#pillText').textContent='No readings yet'}
-    else if(age<=STALE_S){pill.className='pill';$('#pillText').textContent='Live · last reading '+ago(age)+' ago'}
-    else{pill.className='pill stale';$('#pillText').textContent='No new data for '+ago(age)}
-    render()}
-  catch(e){$('#pill').className='pill down';$('#pillText').textContent='Server not reachable'+(/ 401$/.test(e.message)?' (log in again)':'');console.warn('summary:',e.message)}}
+/* ============ health & alarm rules ============ */
+function conds(k){
+  const o=[],L=(sev,key,title,cause,action)=>o.push({sev,key,title,cause,action});
+  const m=k.last;if(!m)return o;
+  if(Date.now()-k.seen>TH.stale*1000){L('warning','offline','No data',`Nothing received for over ${TH.stale} s. The gateway, RS485 link or network may be down.`,'Check the gateway service and the USB-RS485 cable.');return o}
+  const t=m.temps.max_c,d=m.cells.delta_mv,s=m.pack.soc_pct,c=m.cells;
+  if(t>=TH.tCrit)L('critical','temp','High temperature',`Temperature is ${t} C (critical limit ${TH.tCrit}). Likely overload or poor cooling.`,'Stop charge/discharge and cool the pack.');
+  else if(t>=TH.tWarn)L('warning','temp','High temperature',`Temperature is ${t} C (limit ${TH.tWarn}). Likely overload or poor cooling.`,'Reduce load or charge rate and improve airflow.');
+  if(d>=TH.dCrit)L('critical','imb','Cell imbalance',`Cells differ by ${d} mV (critical ${TH.dCrit}).`,'Stop use, balance-charge and inspect the weakest cell.');
+  else if(d>=TH.dWarn)L('warning','imb','Cell imbalance',`Cells differ by ${d} mV (limit ${TH.dWarn}). Likely a weak cell or balancing not completing.`,'Charge fully so the balancer can work, then inspect the weakest cell.');
+  if(c.min_mv<=TH.cLow)L('critical','clow','Cell under-voltage',`Cell ${c.min_cell} is at ${c.min_mv} mV (limit ${TH.cLow}). Over-discharge or a weak cell.`,'Stop discharging and recharge gently.');
+  if(c.max_mv>=TH.cHigh)L('critical','chigh','Cell over-voltage',`Cell ${c.max_cell} is at ${c.max_mv} mV (limit ${TH.cHigh}).`,'Stop charging and check the charger and balancer.');
+  if(s<=TH.socCrit&&m.pack.current_a<0)L('critical','soc','Battery almost empty',`State of charge is ${f(s)} %.`,'Disconnect the load and recharge.');
+  else if(s<=TH.socWarn&&m.pack.current_a<0)L('warning','soc','Low charge',`State of charge is ${f(s)} %.`,'Plan a recharge soon.');
+  k.dev.forEach((v,i)=>{if(v<-30)L('warning','weak'+i,`Weak cell C${i+1}`,`Cell ${i+1} stays about ${Math.round(-v)} mV below the other cells. Likely an ageing or damaged cell.`,'Test that cell on its own and plan its replacement.')});
+  (m.faults||[]).forEach(x=>L('warning','bms_'+x,'BMS fault: '+x.replace(/_/g,' '),'The BMS itself reported this fault.','Check the cell/temperature that tripped it.'));
+  return o;
+}
+const rec=(now,k,ev,c)=>{HIST.unshift({t:now,kit:k.id,ev,title:c.title,sev:c.sev});AB.push({t:now,kit:k.id,label:k.label,ev,title:c.title,sev:c.sev,src:SRC})};
+function reconcile(k){
+  const now=Date.now(),cs=conds(k),keys=new Set(cs.map(c=>c.key));
+  cs.forEach(c=>{if(!ALARMS.find(a=>a.kit===k.id&&a.key===c.key)){
+    const a={...c,kit:k.id,since:now,ack:false};ALARMS.push(a);
+    rec(now,k,'raised',c);toast(a)}});
+  ALARMS=ALARMS.filter(a=>{if(a.kit!==k.id||keys.has(a.key))return true;
+    rec(now,k,'cleared',a);return false});
+  if(HIST.length>200)HIST.length=200;
+}
+function health(k){
+  const m=k.last;if(!m)return null;
+  const d=m.cells.delta_mv,t=m.temps.max_c,fc=(m.faults||[]).length;
+  const pi=Math.min(20,d*.2),pt=Math.min(15,Math.max(0,t-40)),pf=Math.min(20,fc*5),sc=100-pi-pt-pf;
+  const crit=t>55||d>150||sc<50||ALARMS.some(a=>a.kit===k.id&&a.sev==='critical');
+  return{sc,pi,pt,pf,st:crit?'Critical':sc>=85?'Healthy':sc>=70?'Watch':'Warning'};
+}
 
-async function loadHistory(){if(!cur)return;
-  try{const d=await get('/api/history?battery='+encodeURIComponent(cur)+'&minutes=10');
-    live.data.labels=d.points.map(q=>hm(T(q.ts)));const vv=d.points.map(q=>q.voltage_v),ii=d.points.map(q=>q.current_a);live.data.datasets[0].data=vv;live.data.datasets[1].data=ii;if(vv.length){const lo=Math.min(...vv),hi=Math.max(...vv);live.options.scales.y.suggestedMin=Math.floor(lo-.5);live.options.scales.y.suggestedMax=Math.ceil(hi+.5)}if(ii.length){const a=Math.max(5,...ii.map(Math.abs));live.options.scales.y1.suggestedMin=-Math.ceil(a*1.1);live.options.scales.y1.suggestedMax=Math.ceil(a*1.1)}live.update('none')}catch(e){}}
-async function loadSoc(){if(!cur)return;
-  try{const d=await get('/api/history?battery='+encodeURIComponent(cur)+'&minutes=360');
-    socC.data.labels=d.points.map(q=>T(q.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));socC.data.datasets[0].data=d.points.map(q=>q.soc_pct);socC.update('none')}catch(e){}}
-async function loadEvents(){
-  try{const d=await get('/api/events?limit=12'),rows=[];
-    for(const e of d.events){const t=T(e.ts),day=t&&t.toDateString()!==now.toDateString()?t.toLocaleDateString([],{day:'numeric',month:'short'})+' ':'';
-      if(e.kind==='status'){const on=e.state==='online';rows.push([day+hm(t),e.source,(on?'Online':'Offline')+(e.reason&&!on?' – '+e.reason:''),on?'ok':'bad'])}
-      else{(e.raised||[]).forEach(x=>rows.push([day+hm(t),e.source,'Raised: '+nice(x),/_l2$|fault|err/.test(x)?'bad':'warn']));
-           (e.cleared||[]).forEach(x=>rows.push([day+hm(t),e.source,'Cleared: '+nice(x),'ok']))}}
-    $('#alog').innerHTML=rows.length?rows.slice(0,12).map(r=>'<tr><td>'+esc(r[0])+'</td><td class="b">'+esc(r[1])+'</td><td class="'+r[3]+'">'+esc(r[2])+'</td></tr>').join(''):'<tr><td colspan="3">No alarms yet.</td></tr>'}catch(e){}}
+/* ============ notifications ============ */
+function toast(a){
+  const e=document.createElement('div');e.className='toast '+a.sev;
+  e.innerHTML=`<b>${K[a.kit].label}: ${a.title}</b><div class="sm mu">${a.cause}</div>`;
+  $('#toasts').appendChild(e);setTimeout(()=>e.remove(),7000);
+  if(a.sev==='critical'&&CFG.sound)try{const x=new(window.AudioContext||window.webkitAudioContext)(),o=x.createOscillator();o.connect(x.destination);o.frequency.value=880;o.start();o.stop(x.currentTime+.25)}catch(e){}
+  try{if(window.Notification&&Notification.permission==='granted'&&a.sev==='critical')new Notification(`${K[a.kit].label}: ${a.title}`,{body:a.cause})}catch(e){}
+}
 
-function pick(id){cur=id;render();loadHistory();loadSoc()}
+/* ============ simulator (same JSON as the gateway) ============ */
+const SPEC={kit12v:{n:4,nom:12.8,cap:100},kit36v:{n:12,nom:38.4,cap:60},kit48v:{n:16,nom:51.2,cap:40}};
+const OCV=[[0,2800],[5,3100],[10,3200],[20,3240],[50,3290],[80,3330],[90,3350],[95,3400],[100,3600]];
+const ocv=s=>{for(let i=1;i<OCV.length;i++)if(s<=OCV[i][0]){const[a,b]=OCV[i-1],[c,d]=OCV[i];return b+(d-b)*(s-a)/(c-a)}return 3600};
+let SIM={},simT=Date.now(),simTimer=null;
+function simInit(){simT=Date.now();SIM={};let r=1;
+  for(const id in SPEC){const s=SPEC[id];SIM[id]={soc:40+r*18%50,mode:'dis',cycles:40+r*5,T:26,off:Array.from({length:s.n},()=>(Math.random()-.5)*14),weak:Math.floor(Math.random()*s.n),heat:0,offl:0,seq:0,load:5+r*4};r++}}
+function simTick(){
+  simT+=30000;
+  for(const id in SPEC){const s=SPEC[id],x=SIM[id];x.seq++;
+    if(x.mode==='dis'&&x.soc<12){x.mode='chg'}else if(x.mode==='chg'&&x.soc>99){x.mode='dis';x.cycles++}
+    const sc=s.n/4*.8,I=x.mode==='dis'?-(x.load*sc+Math.random()*3):(x.soc>94?8:20)*sc/2*(1+Math.random()*.1);
+    x.soc=Math.min(100,Math.max(0,x.soc+I*30/3600/s.cap*100));
+    const target=26+Math.abs(I)*.5+(x.heat>0?30:0);x.T+=(target-x.T)*.08+(Math.random()-.5)*.4;if(x.heat>0)x.heat--;
+    x.off[x.weak]-=(x.mode==='dis'?.25:0)*(x.off[x.weak]>-90);
+    const v=Array.from({length:s.n},(_,i)=>Math.round(ocv(x.soc)+x.off[i]+I*(i===x.weak?1.8:.9)+(Math.random()-.5)*2));
+    const mx=Math.max(...v),mn=Math.min(...v),bal=x.mode==='chg'&&x.soc>90?v.map((a,i)=>a-mn>10?i+1:0).filter(Boolean):[];
+    const tt=[Math.round(x.T),Math.round(x.T-1)],pv=v.reduce((a,b)=>a+b,0)/1000,faults=[];
+    if(mn<3000)faults.push('cell_volt_low_l1');if(x.T>55)faults.push('temp_high_l2');
+    if(x.offl>0){x.offl--;continue}
+    ingest({schema:1,site:'lab1',battery_id:id,nominal_voltage:s.nom,chemistry:'LiFePO4',ts:new Date(simT).toISOString(),seq:x.seq,
+      pack:{voltage_v:+pv.toFixed(2),current_a:+I.toFixed(2),power_w:Math.round(pv*I),soc_pct:+x.soc.toFixed(1),state:I>.5?'charging':I<-.5?'discharging':'idle',remaining_ah:+(s.cap*x.soc/100).toFixed(2),cycles:x.cycles,charge_mos:true,discharge_mos:true,charger_connected:I>0,load_connected:I<0},
+      cells:{count:s.n,voltages_mv:v,max_mv:mx,max_cell:v.indexOf(mx)+1,min_mv:mn,min_cell:v.indexOf(mn)+1,delta_mv:mx-mn,balancing:bal},
+      temps:{sensors_c:tt,max_c:Math.max(...tt),min_c:Math.min(...tt)},faults,fault_code:faults.length?1:0});
+  }
+  Object.values(K).forEach(reconcile);
+}
+function inject(type,id){const x=SIM[id];if(!x)return;
+  if(type==='heat')x.heat=40;if(type==='weak')x.off[x.weak]-=70;if(type==='off')x.offl=15;if(type==='low'){x.soc=9;x.mode='dis'}}
+
+/* ============ live MQTT over WebSocket ============ */
+let cli=null;
+function connect(){
+  if(!window.mqtt){conn='mqtt.js not loaded (check internet / CDN)';return}
+  conn='connecting';
+  cli=mqtt.connect(CFG.url,{username:CFG.user||undefined,password:CFG.pass||undefined,reconnectPeriod:3000,clientId:'bhm-dash-'+Math.random().toString(16).slice(2,8)});
+  cli.on('connect',()=>{conn='connected';cli.subscribe(CFG.topic,{qos:0})});
+  cli.on('reconnect',()=>conn='reconnecting');
+  cli.on('error',e=>conn='error: '+e.message);
+  cli.on('offline',()=>conn='offline');
+  cli.on('message',(t,b)=>{if(!t.endsWith('/telemetry'))return;try{ingest(JSON.parse(b.toString()))}catch(e){}});
+}
+function start(){
+  clearInterval(simTimer);if(cli){try{cli.end(true)}catch(e){}cli=null}
+  K={};ALARMS=[];HIST=[];sel=null;
+  if(CFG.mode==='sim'){conn='simulator';simInit();for(let i=0;i<20;i++)simTick();simTimer=setInterval(simTick,1000)}
+  else connect();
+}
+
+/* ============ charts ============ */
+function line(series,H=150){
+  const W=600,all=series.flatMap(s=>s.d);if(all.length<2)return'<div class="mu">Waiting for data…</div>';
+  return`<svg viewBox="0 0 ${W} ${H}">`+series.map(s=>{
+    const mn=s.min??Math.min(...s.d),mx=s.max??Math.max(...s.d),r=(mx-mn)||1;
+    const pts=s.d.map((v,i)=>`${(i/(s.d.length-1)*W).toFixed(1)},${(H-8-(v-mn)/r*(H-16)).toFixed(1)}`).join(' ');
+    return`<polyline fill="none" stroke="${s.c}" stroke-width="2" ${s.dash?'stroke-dasharray="5 4"':''} points="${pts}"/>`}).join('')+'</svg>'+
+    '<div class="sm mu">'+series.map(s=>`<span style="color:${s.c}">■</span> ${s.n}: ${f(s.d[s.d.length-1],s.dp??2)} (min ${f(Math.min(...s.d),s.dp??2)}, max ${f(Math.max(...s.d),s.dp??2)})`).join(' &nbsp; ')+'</div>';
+}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ============ views ============ */
+const TABS=[['overview','Overview'],['health','Health Monitoring'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
+function kitCard(k){
+  const m=k.last,h=health(k);if(!m)return`<div class="c kit" style="--kc:var(${COL[k.id]||'--tx'})">${k.label}: waiting…</div>`;
+  const s=m.pack.soc_pct;
+  return`<div class="c kit ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})">
+  <b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span><br>
+  <span class="st ${h.st}">${h.st}</span> at ${f(s,0)}% SoC, ${m.pack.state}
+  <div class="bar"><i style="width:${s}%;background:var(${COL[k.id]||'--tx'})"></i></div></div>`}
+function vOverview(){
+  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet. In live mode, check the CONFIG block at the top of the script and that the gateway is publishing.</div>';
+  const k=K[sel]||ks[0],m=k.last;if(!m)return'';
+  const p=m.pack,c=m.cells,kc=`var(${COL[k.id]||'--tx'})`,mn=Math.min(...c.voltages_mv),mx=Math.max(...c.voltages_mv);
+  const eta=p.current_a<-.5?['Time to empty',dur(p.remaining_ah/-p.current_a)]:p.current_a>.5&&k.cap?['Time to full',dur((k.cap-p.remaining_ah)/p.current_a)]:['Time left','n/a'];
+  const met=[['Voltage',f(p.voltage_v,2),'V'],['Current',f(p.current_a,2),'A'],['Power',Math.round(p.power_w),'W'],['Temperature',m.temps.max_c,'°C'],['State of charge',f(p.soc_pct),'%'],['Remaining',f(p.remaining_ah),'Ah'],[eta[0],eta[1],'']]
+    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b>${x[1]} <span class="sm mu">${x[2]}</span></b></div>`).join('');
+  const lo=Math.min(2800,mn-50),hi=Math.max(3700,mx+50);
+  const bars=c.voltages_mv.map((v,i)=>{const bal=(c.balancing||[]).includes(i+1),bad=v===mn&&c.delta_mv>TH.dWarn;
+    return`<div title="C${i+1}: ${v} mV" style="height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;background:${bad?css('--cr'):bal?css('--ok'):css('--wa')}"></div>`}).join('');
+  const chip=(t,on)=>`<span class="chip ${on?'ok':'off'}">${t}: ${on?'on':'off'}</span>`;
+  const rows=ks.map(x=>{const h=health(x),q=x.last;if(!q)return'';return`<tr><td style="color:var(${COL[x.id]||'--tx'})"><b>${x.label}</b></td><td>${x.n}S</td><td>${f(q.pack.soc_pct,0)}%</td><td>${q.pack.cycles}</td><td>${q.cells.delta_mv} mV</td><td>${q.temps.max_c} °C</td><td><b>${f(h.sc)}</b></td><td class="st ${h.st}">${h.st}</td></tr>`}).join('');
+  return`<div class="g g3" style="margin-bottom:12px">${ks.map(kitCard).join('')}</div>
+  <div class="g g6" style="margin-bottom:12px">${met}</div>
+  <div class="c"><h2>BMS status</h2>${chip('Charge MOS',p.charge_mos)}${chip('Discharge MOS',p.discharge_mos)}${chip('Charger',p.charger_connected)}${chip('Load',p.load_connected)}
+   <div class="sm mu">Balancing cells: ${(c.balancing||[]).length?c.balancing.join(', '):'none'}. Active faults: ${(m.faults||[]).join(', ')||'none'}. Last reading ${Math.round((Date.now()-k.seen)/1000)} s ago${m.seq?`, message #${m.seq}`:''}.</div></div>
+  <div class="g g2"><div class="c"><h2>Live voltage and current</h2><div class="sm mu">Last ${k.h.length} readings. Positive current means charging.</div>
+   ${line([{n:'Voltage V',d:k.h.map(x=>x.v),c:kc},{n:'Current A',d:k.h.map(x=>x.i),c:css('--mu'),dash:1}])}</div>
+   <div class="c"><h2>Cell voltages</h2><div class="sm mu">Imbalance <b>${c.delta_mv} mV</b> (flag above ${TH.dWarn}). Green = balancing, red = weakest cell.</div>
+   <div class="cells">${bars}</div><div class="cl">${c.voltages_mv.map((_,i)=>`<span>${i+1}</span>`).join('')}</div></div></div>
+  <div class="g g2"><div class="c"><h2>State of charge &amp; temperature</h2>${line([{n:'SoC %',d:k.h.map(x=>x.soc),c:kc,min:0,max:100,dp:1},{n:'Temp °C',d:k.h.map(x=>x.T),c:css('--wn'),dp:1}])}</div>
+   <div class="c"><h2>Pack comparison</h2><table><tr><th>Pack</th><th>Cells</th><th>SoC</th><th>Cycles</th><th>Imbalance</th><th>Temp</th><th>Score</th><th>Status</th></tr>${rows}</table></div></div>
+  <div class="c"><h2>Last MQTT message</h2><pre>${JSON.stringify(m,null,1)}</pre></div>`;
+}
+function vHealth(){
+  const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
+  return`<div class="g g3" style="margin-bottom:12px">${ks.map(k=>{const h=health(k),m=k.last,r=(a,b)=>`<tr><td>${a}</td><td style="text-align:right"><b>${f(b)}</b></td></tr>`;
+    return`<div class="c" style="--kc:var(${COL[k.id]||'--tx'})"><b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span>
+    <div style="font-size:46px;font-weight:700;line-height:1.1">${f(h.sc)} <span class="chip ${h.st}">${h.st}</span></div><div class="mu sm">Health score out of 100</div>
+    <table>${r('State of health ,100)}${r('Cell imbalance',-h.pi)}${r('Temperature',-h.pt)}${r('Active faults',-h.pf)}</table>
+<div class="sm mu" style="margin-top:6px">Imbalance ${m.cells.delta_mv} mV, cycles ${m.pack.cycles}, max temp ${m.temps.max_c} °C. Weakest cell: C${m.cells.min_cell}.</div></div>`}).join('')}</div>
+}
+function vAlerts(){
+  const sev={critical:0,warning:1},al=[...ALARMS].sort((a,b)=>sev[a.sev]-sev[b.sev]||a.since-b.since);
+  const sim=CFG.mode==='sim'?`<div class="c"><h2>Simulate a fault (demo)</h2><div class="sm mu">Triggers the same alarms a real battery would.</div>
+   ${Object.keys(SPEC).map(id=>`<div style="margin:4px 0"><b>${id.replace('kit','').toUpperCase()}</b> ${[['heat','Overheat'],['weak','Weak cell'],['low','Low charge'],['off','Data loss']].map(([t,l])=>`<button class="b" data-a="inj" data-t="${t}" data-k="${id}">${l}</button>`).join(' ')}</div>`).join('')}</div>`:'';
+  return`<div class="c"><h2>Active issues</h2><div class="sm mu">Rules compare each reading with limits and with the cell history. The cause is a likely cause, not a proof.</div>
+  <table><tr><th>Severity</th><th>Kit</th><th>Issue</th><th>Likely cause</th><th>Suggested action</th><th>Since</th><th></th></tr>
+  ${al.map((a,i)=>`<tr style="${a.ack?'opacity:.55':''}"><td class="st ${a.sev}">${a.sev}</td><td><b>${K[a.kit].label}</b></td><td>${a.title}</td><td>${a.cause}</td><td>${a.action}</td><td>${hhmmss(a.since)}</td><td>${a.ack?'acked':`<button class="b" data-a="ack" data-k="${a.kit}" data-key="${a.key}">Acknowledge</button>`}</td></tr>`).join('')||'<tr><td colspan="7" class="mu">No active issues.</td></tr>'}</table></div>
+  ${sim}
+  <div class="c"><h2>History</h2><table><tr><th>Time</th><th>Kit</th><th>Event</th><th>Issue</th></tr>
+  ${HIST.slice(0,40).map(h=>`<tr><td>${hhmmss(h.t)}</td><td><b>${K[h.kit].label}</b></td><td class="st ${h.ev==='raised'?h.sev:'healthy'}">${h.ev}</td><td>${h.title}</td></tr>`).join('')||'<tr><td colspan="4" class="mu">Nothing yet.</td></tr>'}</table></div>`;
+}
+function vPerf(){
+  const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
+  const rows=ks.map(k=>{const cyc=k.cap?k.ahOut/k.cap:0,eff=k.eIn>1?k.eOut/k.eIn*100:null,up=Math.min(100,k.h.length/Math.max(1,(Date.now()-k.first)/1000)*100);
+    return`<tr><td style="color:var(${COL[k.id]||'--tx'})"><b>${k.label}</b></td><td>${f(k.eIn/1000,3)} kWh</td><td>${f(k.eOut/1000,3)} kWh</td><td>${eff==null?'n/a':f(eff,0)+' %'}</td><td>${f(cyc,2)}</td><td>${f(k.tSum/k.tN)} °C</td><td>${Math.round(k.peak)} W</td><td>${f(k.cap)} Ah</td></tr>`}).join('');
+  return`<div class="c"><h2>Power by kit</h2><div class="sm mu">Positive = charging, negative = discharging.</div>
+  ${line(ks.map(k=>({n:k.label,d:k.h.map(x=>x.w),c:css(COL[k.id]||'--tx'),dp:0})))}</div>
+  <div class="c"><h2>Kit comparison </h2><div class="sm mu"></div>
+  <table><tr><th>Kit</th><th>Energy in</th><th>Energy out</th><th>Out/in</th><th>Equiv. cycles</th><th>Avg temp</th><th>Peak power</th><th>Est. capacity</th></tr>${rows}</table>
+  <p><button class="b p" data-a="csv">Export history as CSV</button> <button class="b" data-a="reset">Reset counters</button></p></div>`;
+}
+/* ---- database tab ---- */
+const RANGES={'1h':36e5,'24h':864e5,'7d':6048e5};
+const dbq={table:'summary',kit:'all',range:'1h',src:'all'};
+const DBV={ver:0,drawn:-1,busy:false,again:false,err:'',rows:[],sum:[],ev:[],n:0,total:0,alarms:0,oldest:null,newest:null,usage:null};
+const dbOk=(q,r)=>(q.kit==='all'||r.kit===q.kit)&&(q.src==='all'||r.src===q.src);
+async function refreshDB(){
+  if(DBV.busy){DBV.again=true;return}
+  DBV.busy=true;await idb;
+  if(!DB){DBV.err='This browser blocks IndexedDB, so the database is unavailable (try a normal, non-private window).';DBV.busy=false;DBV.ver++;render();return}
+  await flush();
+  const q={...dbq},since=Date.now()-RANGES[q.range],bs=q.range==='1h'?6e4:q.range==='24h'?6e5:36e5,rows=[],B={},ev=[];let n=0;
+  await scan('readings',since,r=>{if(!dbOk(q,r))return;n++;if(rows.length<100)rows.push(r);
+    const t=Math.floor(r.t/bs)*bs,b=B[t+r.kit]||(B[t+r.kit]={t,kit:r.kit,label:r.label,src:r.src,n:0,v:0,i:0,w:0,soc:0,T:0,d:0});
+    b.n++;b.v+=r.v;b.i+=r.i;b.w+=r.w;b.soc+=r.soc;b.T=Math.max(b.T,r.T);b.d=Math.max(b.d,r.d)});
+  await scan('alarms',since,r=>{if(dbOk(q,r)&&ev.length<200)ev.push(r)});
+  Object.assign(DBV,{err:'',rows,ev,n,sum:Object.values(B).sort((a,b)=>b.t-a.t||a.kit.localeCompare(b.kit)),
+    total:await countAll('readings'),alarms:await countAll('alarms'),oldest:await edge('readings','next'),newest:await edge('readings','prev')});
+  try{DBV.usage=(await navigator.storage.estimate()).usage}catch(e){DBV.usage=null}
+  DBV.busy=false;DBV.ver++;render();
+  if(DBV.again){DBV.again=false;refreshDB()}
+}
+async function exportDB(){
+  await idb;await flush();const q={...dbq},r=['kit,time,source,voltage_v,current_a,power_w,soc_pct,temp_c,imbalance_mv'];
+  await scan('readings',Date.now()-RANGES[q.range],x=>{if(dbOk(q,x))r.push([x.label,new Date(x.t).toISOString(),x.src,x.v,x.i,x.w,x.soc,x.T,x.d].join(','))});
+  const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download='bhm-database.csv';l.click();
+}
+async function clearDB(){
+  if(!confirm('Delete ALL stored readings and alarm events from this browser?'))return;
+  await idb;if(!DB)return;RB=[];AB=[];
+  const tx=DB.transaction(['readings','alarms'],'readwrite');tx.objectStore('readings').clear();tx.objectStore('alarms').clear();
+  tx.oncomplete=()=>refreshDB();
+}
+function vDB(){
+  if(DBV.err)return`<div class="c"><b class="critical">${DBV.err}</b></div>`;
+  const o=(v,l,cur)=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`,ks=['all',...Object.keys(SPEC)];
+  const dt=t=>t?new Date(t).toLocaleString('en-GB'):'n/a',tm=t=>dbq.range==='1h'?hhmmss(t):dt(t),sr=x=>x==='sim'?'Simulated':'Live';
+  const kc=l=>`<td><b>${l}</b></td>`,mb=DBV.usage==null?'n/a':f(DBV.usage/1048576,1)+' MB';
+  const tb=`<div class="tb"><select data-f="table">${o('summary','Summary (averages)',dbq.table)}${o('readings','Raw readings',dbq.table)}${o('events','Alarm events',dbq.table)}</select>
+   <select data-f="kit">${ks.map(k=>o(k,k==='all'?'All kits':k.replace('kit','').toUpperCase(),dbq.kit)).join('')}</select>
+   <select data-f="range">${o('1h','Last hour',dbq.range)}${o('24h','Last 24 hours',dbq.range)}${o('7d','Last 7 days',dbq.range)}</select>
+   <select data-f="src">${o('all','Live + simulated',dbq.src)}${o('live','Live only',dbq.src)}${o('sim','Simulated only',dbq.src)}</select>
+   <button class="b" data-a="dbref">Refresh</button><button class="b p" data-a="dbcsv">Export CSV</button><button class="b" data-a="dbclr">Clear database</button></div>`;
+  const stats=[['Stored readings',DBV.total],['In this view',DBV.n],['Alarm events',DBV.alarms],['Oldest',dt(DBV.oldest)],['Newest',dt(DBV.newest)],['Browser storage',mb]]
+    .map(x=>`<div class="m" style="--kc:var(--c36)"><span class="mu sm">${x[0]}</span><b style="font-size:${String(x[1]).length>9?13:22}px">${x[1]}</b></div>`).join('');
+  let head,body;
+  if(dbq.table==='readings'){head='<th>Time</th><th>Kit</th><th>Voltage</th><th>Current</th><th>Power</th><th>SoC</th><th>Temp</th><th>Imbalance</th><th>Source</th>';
+    body=DBV.rows.map(r=>`<tr><td>${tm(r.t)}</td>${kc(r.label)}<td>${f(r.v,2)} V</td><td>${f(r.i,2)} A</td><td>${Math.round(r.w)} W</td><td>${f(r.soc)} %</td><td>${r.T} °C</td><td>${r.d} mV</td><td>${sr(r.src)}</td></tr>`).join('')}
+  else if(dbq.table==='events'){head='<th>Time</th><th>Kit</th><th>Event</th><th>Issue</th><th>Severity</th><th>Source</th>';
+    body=DBV.ev.map(r=>`<tr><td>${tm(r.t)}</td>${kc(r.label)}<td class="st ${r.ev==='raised'?r.sev:'healthy'}">${r.ev}</td><td>${r.title}</td><td class="${r.sev}">${r.sev}</td><td>${sr(r.src)}</td></tr>`).join('')}
+  else{head='<th>Time</th><th>Kit</th><th>Samples</th><th>Avg V</th><th>Avg A</th><th>Avg power</th><th>Avg SoC</th><th>Max temp</th><th>Max imbalance</th><th>Source</th>';
+    body=DBV.sum.slice(0,100).map(b=>`<tr><td>${tm(b.t)}</td>${kc(b.label)}<td>${b.n}</td><td>${f(b.v/b.n,2)} V</td><td>${f(b.i/b.n,2)} A</td><td>${Math.round(b.w/b.n)} W</td><td>${f(b.soc/b.n,0)} %</td><td>${b.T} °C</td><td>${b.d} mV</td><td>${sr(b.src)}</td></tr>`).join('')}
+  const ids=[...new Set(DBV.sum.map(b=>b.kit))],ch=line(ids.map(id=>({n:K[id]?K[id].label:id,d:DBV.sum.filter(b=>b.kit===id).reverse().map(b=>b.w/b.n),c:css(COL[id]||'--tx'),dp:0})));
+  const cols=head.split('<th>').length-1;
+  return`<div class="c"><h2>Database</h2><div class="sm mu">Every kit is saved about every ${SAVE_EVERY/1000} s, plus every alarm raised or cleared. Data stays in this browser after you close the page and is deleted after ${RETAIN/864e5} days.</div></div>
+  ${tb}<div class="g g6" style="margin-bottom:12px">${stats}</div>
+  <div class="c"><h2>Average power in this view</h2><div class="sm mu">Positive = charging, negative = discharging.</div>${ch}</div>
+  <div class="c"><h2>${{summary:,readings:'Latest 100 raw readings',events:'Alarm events (latest 200)'}[dbq.table]}</h2>
+  <table><tr>${head}</tr>${body||`<tr><td colspan="${cols}" class="mu">No data stored for this selection yet.</td></tr>`}</table></div>`;
+}
+
+/* ============ render loop & events ============ */
 function render(){
-  if(!P.length){$('#tabs').innerHTML='<div class="empty">No readings in the database yet.</div>';return}
-  const p=P.find(q=>q.battery_id===cur),c=css(colOf(p));
-  document.documentElement.style.setProperty('--pc',c);
-  $('#tabs').innerHTML=P.map(q=>{const st=statusOf(q);return '<button class="tab'+(q.battery_id===cur?' on':'')+(st==='Offline'?' off':'')+'" style="--pc:'+css(colOf(q))+'" onclick="pick(\''+esc(q.battery_id)+'\')"><b>'+esc(nameOf(q))+'</b> <span class="sub">'+esc(q.battery_id)+' · '+q.cell_count+'S '+esc(q.chemistry||'')+'</span><div class="sub"><span class="'+sc(st)+' b">'+st+'</span> at '+f(q.soc_pct,0)+'% SoC, '+esc(q.state||'')+'</div><div class="bar"><span style="width:'+f(q.soc_pct,0)+'%;background:'+css(colOf(q))+'"></span></div></button>'}).join('');
-  $('#kpis').innerHTML=[['Voltage',f(p.voltage_v,2),'V'],['Current',(p.current_a>0?'+':'')+f(p.current_a,1),'A'],['Power',f(p.power_w,0),'W'],['Temperature',f(p.temp_max_c,0),'°C'],['State of charge',f(p.soc_pct,1),'%'],['Remaining',f(p.remaining_ah,1),'Ah']].map(k=>'<div class="k" style="--pc:'+c+'"><small>'+k[0]+'</small><div>'+k[1]+'<em>'+k[2]+'</em></div></div>').join('');
-  live.data.datasets[0].borderColor=c;live.data.datasets[1].borderColor=css('--mut');socC.data.datasets[0].borderColor=c;
-  const cells=(p.cells_mv||[]).map(v=>v/1000),valid=cells.filter(v=>v>0),mx=Math.max(...valid),mn=Math.min(...valid),imb=p.cell_delta_mv;
-  cell.data.labels=cells.map((_,i)=>'C'+(i+1));cell.data.datasets[0].data=cells;
-  cell.data.datasets[0].backgroundColor=cells.map((v,i)=>v<=0?css('--mut'):(imb>50&&v===mn)?css('--bad'):(p.balancing||[]).includes(i+1)?css('--warn'):c);
-  cell.options.scales.y.min=Math.min(2.4,mn-.05);cell.options.scales.y.max=Math.max(3.7,mx+.05);cell.update('none');
-  $('#cellNote').innerHTML=valid.length?'Imbalance (max minus min): <b class="'+(imb>50?'warn':'ok')+'">'+f(imb,0)+' mV</b> (cell '+p.cell_max_no+' highest, cell '+p.cell_min_no+' lowest). '+((p.balancing||[]).length?'Balancing: cell '+p.balancing.join(', ')+' (amber). ':'')+'Red above 50 mV.':'No cell data.';
-  $('#cmp').innerHTML=P.map(q=>{const st=statusOf(q);return '<tr><td class="b" style="color:'+css(colOf(q))+'">'+esc(nameOf(q))+'</td><td>'+q.cell_count+'S '+esc(q.chemistry||'')+', '+f(q.nominal_voltage,1)+' V'+(q.rated_ah?', ~'+q.rated_ah+' Ah':'')+'</td><td>'+f(q.soc_pct,0)+'%</td><td>'+f(q.remaining_ah,1)+' Ah</td><td>'+(q.cycles??'–')+'</td><td>'+f(q.cell_delta_mv,0)+' mV</td><td>'+f(q.temp_max_c,0)+' °C</td><td>'+(q.charge_mos?'on':'<b class="bad">OFF</b>')+' / '+(q.discharge_mos?'on':'<b class="bad">OFF</b>')+'</td><td>'+((q.faults||[]).map(nice).map(esc).join(', ')||'–')+'</td><td class="b '+sc(st)+'">'+st+'</td></tr>'}).join('');
-  $('#topic').textContent='Topic: bhm/'+p.site+'/'+p.battery_id+'/telemetry · read at '+hm(T(p.ts))+' ('+ago(ageOf(p))+' ago), gateway boot '+p.boot_id+', message #'+p.seq;
-  const {id,received_at,...msg}=p;$('#payload').textContent=JSON.stringify(msg,null,1)}
-
-mk();
-loadSummary().then(()=>{loadHistory();loadSoc()});loadEvents();
-setInterval(loadSummary,5000);setInterval(loadHistory,10000);setInterval(loadSoc,60000);setInterval(loadEvents,10000);
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{theme();render();live.update();cell.update();socC.update()});
-</script></body></html>
+  $('#tabs').innerHTML=TABS.map(([id,l])=>`<button class="tab ${tab===id?'on':''}" data-a="tab" data-t="${id}">${l}${id==='alerts'&&ALARMS.length?`<span class="badge">${ALARMS.filter(a=>!a.ack).length}</span>`:''}</button>`).join('');
+  const live=CFG.mode==='mqtt',ok=live?conn==='connected':true;
+  $('#pill').innerHTML=`<span class="pill"><span class="dot ${ok?'on':'bad'}"></span>${live?'Live MQTT: '+conn:'Simulator running'}</span>`;
+  if(tab==='db'){if(DBV.drawn===DBV.ver)return;DBV.drawn=DBV.ver}
+  $('#view').innerHTML={overview:vOverview,health:vHealth,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
+}
+document.addEventListener('change',e=>{const x=e.target.closest('[data-f]');if(x){dbq[x.dataset.f]=x.value;refreshDB()}});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
+  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}}
+  else if(a==='sel'){sel=b.dataset.k}
+  else if(a==='ack'){const x=ALARMS.find(z=>z.kit===b.dataset.k&&z.key===b.dataset.key);if(x)x.ack=true}
+  else if(a==='inj'){inject(b.dataset.t,b.dataset.k)}
+  else if(a==='reset'){Object.values(K).forEach(k=>{k.eIn=k.eOut=k.ahOut=k.peak=k.tSum=k.tN=0;k.first=Date.now()})}
+  else if(a==='csv'){const r=['kit,time,voltage_v,current_a,power_w,soc_pct,temp_c,imbalance_mv'];
+    Object.values(K).forEach(k=>k.h.forEach(x=>r.push([k.label,new Date(x.t).toISOString(),x.v,x.i,x.w,x.soc,x.T,x.d].join(','))));
+    const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download='bhm-history.csv';l.click()}
+  else if(a==='dbref'){refreshDB()}
+  else if(a==='dbcsv'){exportDB()}
+  else if(a==='dbclr'){clearDB()}
+  render();
+});
+let tk=0;start();render();purge();
+setInterval(()=>{Object.values(K).forEach(reconcile);tk++;if(tk%2===0)flush();if(tk%600===0)purge();if(tab==='db'&&tk%5===0)refreshDB();render()},1000);
+addEventListener('beforeunload',flush);
+</script>
+</body>
+</html>
