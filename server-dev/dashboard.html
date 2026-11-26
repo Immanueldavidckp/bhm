@@ -62,6 +62,21 @@ pre{background:var(--bg);padding:10px;border-radius:8px;overflow:auto;font-size:
 .ds{max-height:560px;overflow:auto;border:1px solid var(--ln);border-radius:12px}.ds table{min-width:1250px}.ds th{position:sticky;top:0;background:var(--card);z-index:1;white-space:nowrap}.ds td{white-space:nowrap;font-variant-numeric:tabular-nums}
 .ds tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--tx) 3%,transparent)}.ds tr.tot td{font-weight:700;position:sticky;bottom:0;background:var(--card);border-top:2px solid var(--mu)}
 .ib{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:6px}
+/* ---- history: cards + charge/discharge log ---- */
+.hxg{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:12px}
+.hxc{border-radius:16px;padding:14px 16px;background:linear-gradient(150deg,color-mix(in srgb,var(--kc) 14%,var(--card)),var(--card) 75%);border:1px solid color-mix(in srgb,var(--kc) 25%,var(--ln))}
+.hxt{font-size:12px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}
+.hxb{font-size:30px;font-weight:800;line-height:1.15;margin:6px 0 4px;font-variant-numeric:tabular-nums}.hxb span{font-size:13px;font-weight:600;color:var(--mu);margin-left:4px}
+.hxs{font-size:12px;color:var(--mu);margin-top:6px}
+.hx2{display:flex;gap:14px;margin-top:6px}.hx2 div{flex:1}.hx2 small{display:block;font-size:11px;color:var(--mu)}.hx2 b{font-size:22px;font-variant-numeric:tabular-nums}
+.hp{display:inline-block;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:700;background:color-mix(in srgb,currentColor 14%,transparent)}
+.hxw{border:1px solid var(--ln);border-radius:12px;overflow:auto;max-height:520px}
+table.hxd{width:auto;min-width:100%;border-collapse:separate;border-spacing:0}
+.hxd th,.hxd td{white-space:nowrap;text-align:left;padding:10px 14px;border-bottom:1px solid var(--ln);vertical-align:middle;font-variant-numeric:tabular-nums}
+.hxd thead th{position:sticky;top:0;background:var(--card);z-index:2;color:var(--tx);font-size:12px}
+.hxd tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--tx) 3%,transparent)}
+.hxr{cursor:pointer}.hxr:hover td{background:color-mix(in srgb,var(--kc,var(--c36)) 12%,transparent)!important}
+.hxd .hxh td{background:var(--bg)!important;font-size:13px;padding:8px 14px;cursor:default}
 </style>
 </head>
 <body>
@@ -336,7 +351,7 @@ function healthDetail(k,a){
 }
 
 /* ============ BATTERY PACKAGES tab: all packs, click one for its cells, health and day/month history ============ */
-const PK={sub:'cells',per:'day',ver:0,hist:{},busy:{},at:{},drawn:''};
+const PK={sub:'cells',per:'day',ver:0,hist:{},busy:{},at:{},drawn:'',fr:{},sess:{},open:null,sp:0};
 const dkey=t=>{const x=new Date(t);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
 const newDay=d=>({d,ahIn:0,ahOut:0,whIn:0,whOut:0,pkIn:0,pkOut:0,socMin:101,socMax:-1,socA:null,socB:null,tSum:0,tN:0,tMax:-99,dMax:0,cMin:1e9,cMax:0,sess:0,balS:0,alarms:0,n:0});
 /* live accumulation of today's numbers, added on top of the server snapshot */
@@ -373,13 +388,13 @@ async function loadHist(id){
     if(live)try{all=JSON.parse(localStorage.getItem('bhm_days_'+id)||'{}')}catch(e){}
     let fresh={};
     if(live){const r=await fetch('api/frames?battery='+encodeURIComponent(id)+'&hours=168',{credentials:'same-origin',cache:'no-store'});
-      if(r.ok){const d=await r.json();if(d.n){fresh=daysFromFrames(d);const f0=Object.keys(fresh).sort()[0];if(all[f0]&&all[f0].n>fresh[f0].n)delete fresh[f0];
+      if(r.ok){const d=await r.json();if(d.n){PK.fr[id]=d;fresh=daysFromFrames(d);const f0=Object.keys(fresh).sort()[0];if(all[f0]&&all[f0].n>fresh[f0].n)delete fresh[f0];
         if(K[id]){K[id].snapT=d.t[d.n-1];K[id].day={}}}}}
     else fresh=simHist(id);
     all={...all,...fresh};const keys=Object.keys(all).sort();while(keys.length>800)delete all[keys.shift()];
     if(live)try{localStorage.setItem('bhm_days_'+id,JSON.stringify(all))}catch(e){}
   }catch(e){}
-  PK.hist[id]=all;PK.at[id]=Date.now();PK.busy[id]=0;PK.ver++;render()}
+  PK.hist[id]=all;try{PK.sess[id]=buildSess(id)}catch(e){PK.sess[id]=PK.sess[id]||[]}PK.at[id]=Date.now();PK.busy[id]=0;PK.ver++;render()}
 const ring=s=>`<svg class="ring" viewBox="0 0 88 88"><circle cx="44" cy="44" r="36" fill="none" stroke="var(--ln)" stroke-width="9"/><circle cx="44" cy="44" r="36" fill="none" stroke="var(--kc)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(2.262*Math.max(0,Math.min(100,s))).toFixed(1)} 226.2" transform="rotate(-90 44 44)"/><text x="44" y="50" text-anchor="middle" font-size="20" font-weight="700" fill="var(--tx)">${f(s,0)}%</text></svg>`;
 function packGrid(){return Object.values(K).map(k=>{const m=k.last;if(!m)return'';const p=m.pack,h=health(k),off=Date.now()-k.seen>TH.stale*1000,
   eta=p.current_a<-.5?'Empty in '+dur(p.remaining_ah/-p.current_a):p.current_a>.5&&k.cap?'Full in '+dur((k.cap-p.remaining_ah)/p.current_a):'Standing by';
@@ -404,27 +419,154 @@ function cellsView(k){const m=k.last;if(!m)return'';const p=m.pack,c=m.cells,v=c
 function healthView(k){const a=HL[k.id];
   if(CFG.mode!=='mqtt')return'<div class="c mu">Cell resistance and capacity are calculated on the server: open the live dashboard to see them.</div>';
   if(!a||!a.readings)return`<div class="c mu">No stored readings for ${k.label} yet.</div>`;return healthDetail(k,a)}
-const HCOLS=['Charged Ah','Charged kWh','Discharged Ah','Discharged kWh','Net Ah','Out/in','SoC start → end','SoC min to max','Peak charge A','Peak discharge A','Avg temp °C','Max temp °C','Max imbalance mV','Charge sessions','Balancing','BMS alarms'];
 function histRows(k){const days=packDays(k.id),M=PK.per==='month';return{M,rows:(M?monthsOf(days):days).slice().reverse()}}
 const histName=(r,M)=>M?new Date(r.d+'-01T12:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'}):new Date(r.d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+/* internal resistance + state of health per day: real server values in live mode (remembered in this browser so the trend grows), demo values in the simulator */
+function qualDays(id){const o={};
+  if(CFG.mode!=='mqtt'){const s=SPEC[id];if(!s)return o;let seed=id.length*13+s.n;const rnd=()=>(seed=(seed*9301+49297)%233280)/233280,base=55/s.cap;
+    for(let q=75;q>=0;q--)o[dkey(Date.now()-q*864e5)]={ir:base*(1+(75-q)/75*.14)*(1+(rnd()-.5)*.04),soh:Math.min(100,98.8-(75-q)*.04+(rnd()-.5)*.3),base};
+    return o}
+  const a=HL[id]||{},ir=a.ir||{},g={};let sn={};
+  (a.ir_events||[]).forEach(e=>{if(e.quality!=='good'||!e.cells_mohm||!e.cells_mohm.length)return;const q=e.cells_mohm.slice().sort((x,y)=>x-y),d=dkey(e.t*1000);(g[d]=g[d]||[]).push(q[Math.floor(q.length/2)])});
+  try{sn=JSON.parse(localStorage.getItem('bhm_q_'+id)||'{}')}catch(e){}
+  if(a.soh_pct!=null||ir.median_mohm!=null){const t=dkey(Date.now()),c=sn[t]||(sn[t]={}),before=JSON.stringify(sn);
+    if(a.soh_pct!=null)c.soh=a.soh_pct;if(ir.median_mohm!=null)c.ir=ir.median_mohm;
+    if(JSON.stringify(sn)!==before)try{localStorage.setItem('bhm_q_'+id,JSON.stringify(sn))}catch(e){}}
+  Object.keys(sn).forEach(d=>o[d]={ir:sn[d].ir==null?null:sn[d].ir,soh:sn[d].soh==null?null:sn[d].soh});
+  Object.keys(g).forEach(d=>{(o[d]=o[d]||{ir:null,soh:null}).ir=g[d].reduce((p,x)=>p+x,0)/g[d].length});
+  return o}
+function qFor(qm,key,M,field){
+  if(!M)return qm[key]&&qm[key][field]!=null?qm[key][field]:null;
+  const v=Object.keys(qm).filter(d=>d.slice(0,7)===key).map(d=>qm[d][field]).filter(x=>x!=null);return v.length?v.reduce((p,x)=>p+x,0)/v.length:null}
+function nowQ(id,qm){
+  if(CFG.mode!=='mqtt'){const t=qm[dkey(Date.now())]||{};return{ir:t.ir==null?null:t.ir,soh:t.soh==null?null:t.soh,rise:t.ir!=null&&t.base?(t.ir/t.base-1)*100:null}}
+  const a=HL[id]||{},ir=a.ir||{};return{ir:ir.median_mohm==null?null:ir.median_mohm,soh:a.soh_pct==null?null:a.soh_pct,rise:ir.rise_vs_new_pct==null?null:ir.rise_vs_new_pct}}
+const imbSt=v=>v>=TH.dCrit?'Replace':v>=TH.dWarn?'Watch':'Good';
+const sohSt=v=>v>=90?'Good':v>=80?'Watch':'Replace';
+const irSt=r=>r==null?'Unknown':r<25?'Good':r<50?'Watch':'Replace';
+const hpill=(st,t)=>`<span class="hp ${st}">${t}</span>`;
+/* ---- LOG: every charge and every discharge is its own entry ---- */
+function sessSumm(d,a,b,type){let ah=0,wh=0,ip=0,dM=0,tM=-99,bs=0,al=0;
+  for(let x=a;x<=b;x++){const I=d.i[x],dt=x>a?Math.min(d.t[x]-d.t[x-1],120000)/3.6e6:0,c=d.cells[x]||[];
+    ah+=Math.abs(I)*dt;wh+=Math.abs(I)*d.v[x]*dt;ip=Math.max(ip,Math.abs(I));if(c.length)dM=Math.max(dM,Math.max(...c)-Math.min(...c));
+    const T=d.temp[x];if(T!=null)tM=Math.max(tM,T);if(x>a&&(d.bal[x]||[]).length)bs+=dt*3600;
+    const fl=d.faults[x]||[],pf=x>a?d.faults[x-1]||[]:[];fl.forEach(q=>{if(!pf.includes(q))al++})}
+  const sec=(d.t[b]-d.t[a])/1000;
+  return{sid:type+'@'+d.t[a],type,start:d.t[a],end:d.t[b],dur:sec,ah,wh,iPeak:ip,iAvg:sec>0?ah/(sec/3600):0,socA:d.soc[a],socB:d.soc[b],vA:d.v[a],vB:d.v[b],tMax:tM,dMax:dM,balS:bs,alarms:al}}
+function segFrames(d){const out=[];let cur=null;
+  for(let x=0;x<d.n;x++){const I=d.i[x],ty=I>1?'charge':I<-1?'discharge':null;if(!ty)continue;
+    if(cur&&cur.type===ty&&d.t[x]-d.t[cur.b]<=900000)cur.b=x;else{if(cur)out.push(cur);cur={type:ty,a:x,b:x}}}
+  if(cur)out.push(cur);
+  return out.filter(g=>d.t[g.b]-d.t[g.a]>=120000).map(g=>({...sessSumm(d,g.a,g.b,g.type),a:g.a,b:g.b}))}
+function genFrames(id,p){const s=SPEC[id],n=Math.max(3,Math.round(p.dur/60)+1);let seed=Math.floor(p.start/1000)%100000+s.n*17;const rnd=()=>(seed=(seed*9301+49297)%233280)/233280;
+  const off=Array.from({length:s.n},()=>(rnd()-.5)*10),weak=Math.floor(rnd()*s.n);off[weak]-=10+rnd()*p.imb;
+  const sh=[];let sum=0;for(let x=0;x<n;x++){const pr=x/(n-1),v=p.type==='charge'?(pr<.8?1:Math.max(.08,1-(pr-.8)/.2*.92)):(.85+rnd()*.3);sh.push(v);sum+=v}
+  const sc=p.ah/(sum*60/3600),d={n,t:[],v:[],i:[],soc:[],temp:[],cells:[],bal:[],faults:[]};
+  for(let x=0;x<n;x++){const pr=x/(n-1),I=(p.type==='charge'?1:-1)*sh[x]*sc,so=p.socA+(p.socB-p.socA)*pr;
+    const c=Array.from({length:s.n},(_,j)=>Math.round(ocv(so)+off[j]+I*(j===weak?1.8:.9)+(rnd()-.5)*2)),mn=Math.min(...c);
+    d.t.push(p.start+x*60000);d.v.push(+(c.reduce((a,b)=>a+b,0)/1000).toFixed(2));d.i.push(+I.toFixed(2));d.soc.push(+so.toFixed(1));
+    d.temp.push(Math.round(26+Math.abs(I)*.25+(rnd()-.5)));d.cells.push(c);d.bal.push(p.type==='charge'&&so>90?c.map((v,j)=>v-mn>10?j+1:0).filter(Boolean):[]);d.faults.push([])}
+  return d}
+function simSessions(id){const s=SPEC[id],out=[],now=Date.now();let seed=id.length*11+s.n;const rnd=()=>(seed=(seed*9301+49297)%233280)/233280;
+  for(let q=75;q>=0;q--){const day=new Date(now-q*864e5);day.setHours(0,0,0,0);const b0=day.getTime();
+    [['charge',b0+(7+rnd()*2)*3.6e6,(2.5+rnd()*2)*3600,15+rnd()*25,Math.min(100,95+rnd()*5)],['discharge',b0+(14.5+rnd()*3)*3.6e6,(2+rnd()*2.5)*3600,Math.min(100,85+rnd()*15),20+rnd()*25]].forEach(([type,st,dr,a,b])=>{
+      const start=Math.round(st/60000)*60000;if(start+dr*1000>now)return;
+      const p={type,start,dur:dr,socA:a,socB:b,ah:s.cap*Math.abs(b-a)/100*(1+rnd()*.04),imb:10+rnd()*50},d=genFrames(id,p),sm=sessSumm(d,0,d.n-1,type);sm.sim=p;out.push(sm)})}
+  return out}
+function buildSess(id){
+  if(CFG.mode!=='mqtt')return simSessions(id);
+  let st=[];try{st=JSON.parse(localStorage.getItem('bhm_sess_'+id)||'[]')}catch(e){}
+  const d=PK.fr[id],has=d&&d.n,fr=has?segFrames(d):[];
+  if(fr.length&&fr[0].a===0){const g=fr[0];if(st.some(o=>o.type===g.type&&o.start<g.start&&o.end>=g.start-9e5))fr.shift()}
+  const keep=has?st.filter(o=>o.start<d.t[0]):st,all=[...keep,...fr].sort((x,y)=>x.start-y.start);
+  try{localStorage.setItem('bhm_sess_'+id,JSON.stringify(all.slice(-1500).map(o=>{const c={...o};delete c.a;delete c.b;return c})))}catch(e){}
+  return all}
+const SF={};
+function sessFrames(id,s){
+  if(CFG.mode!=='mqtt'){const key=id+s.sid;return SF[key]||(s.sim?(SF[key]=genFrames(id,s.sim)):null)}
+  const d=PK.fr[id];if(!d||s.a==null||s.b==null||d.t[s.a]!==s.start)return null;
+  const sl=q=>q.slice(s.a,s.b+1);return{n:s.b-s.a+1,t:sl(d.t),v:sl(d.v),i:sl(d.i),soc:sl(d.soc),temp:sl(d.temp),cells:sl(d.cells),bal:sl(d.bal),faults:sl(d.faults)}}
+function sessIr(id,s,qm){
+  if(CFG.mode==='mqtt'){const ev=((HL[id]||{}).ir_events||[]).filter(e=>e.quality==='good'&&e.cells_mohm&&e.cells_mohm.length&&e.t*1000>=s.start&&e.t*1000<=s.end+60000);
+    if(ev.length){const v=ev.map(e=>{const q=e.cells_mohm.slice().sort((x,y)=>x-y);return q[Math.floor(q.length/2)]});return v.reduce((p,x)=>p+x,0)/v.length}}
+  return qFor(qm,dkey(s.start),false,'ir')}
+function sessDetail(k,s,qm){
+  const kc=`var(${COL[k.id]||'--tx'})`,F=sessFrames(k.id,s),ir=sessIr(k.id,s,qm),so=qFor(qm,dkey(s.start),false,'soh'),ch=s.type==='charge';
+  const Tm=t=>new Date(t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),T=t=>new Date(t).toLocaleTimeString('en-GB'),hh=sec=>sec<30?'0 min':dur(sec/3600);
+  const day=new Date(s.start).toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const said=[`${ch?'Charged':'Discharged'} from <b>${f(s.socA,0)} %</b> to <b>${f(s.socB,0)} %</b> in <b>${hh(s.dur)}</b>: ${f(s.ah,1)} Ah (${f(s.wh/1000,2)} kWh) ${ch?'put in':'taken out'}, average ${f(s.iAvg,1)} A, peak ${f(s.iPeak,1)} A.`,
+    `Pack voltage ${f(s.vA,1)} V at the start and ${f(s.vB,1)} V at the end.`,
+    `Highest temperature ${s.tMax<-90?'n/a':s.tMax+' °C'}${s.tMax>=TH.tWarn?' (above the warning limit)':', inside the limits'}.`];
+  let dx=0,dhi=0,dlo=0;
+  if(F){let best=-1;for(let x=0;x<F.n;x++){const c=F.cells[x]||[];if(!c.length)continue;const g=Math.max(...c)-Math.min(...c);if(g>best){best=g;dx=x;dhi=c.indexOf(Math.max(...c))+1;dlo=c.indexOf(Math.min(...c))+1}}}
+  said.push(`Largest cell imbalance <b>${s.dMax} mV</b>${F&&dhi?` at ${T(F.t[dx])}: C${dhi} highest, C${dlo} lowest`:''}.`);
+  said.push(s.balS>30?`BMS balancing ran for ${Math.round(s.balS/60)} min.`:'The BMS did not balance any cell.');
+  said.push(s.alarms?`<b>${s.alarms}</b> BMS alarm${s.alarms>1?'s':''} raised.`:'No BMS alarms.');
+  said.push(`Internal resistance: ${ir==null?'not measured in this session':'<b>'+f(ir,2)+' mΩ</b>'}. Battery health (SoH): ${so==null?'n/a':'<b>'+f(so,1)+' %</b>'}.`);
+  const met=[['Duration',hh(s.dur)],['SoC',`${f(s.socA,0)} → ${f(s.socB,0)} %`],[ch?'Charged in':'Discharged',`${f(s.ah,1)} Ah`],['Energy',`${f(s.wh/1000,2)} kWh`],['Average current',`${f(s.iAvg,1)} A`],['Peak current',`${f(s.iPeak,1)} A`],
+    ['Voltage',`${f(s.vA,1)} → ${f(s.vB,1)} V`],['Max temperature',s.tMax<-90?'n/a':s.tMax+' °C'],['Max imbalance',`${s.dMax} mV`],['Internal resistance',ir==null?'n/a':f(ir,2)+' mΩ'],['Battery health',so==null?'n/a':f(so,1)+' %'],['Frames',F?F.n:'n/a']]
+    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b style="font-size:18px">${x[1]}</b></div>`).join('');
+  const head=`<div class="tb"><button class="b p" data-a="sback">← Back to log</button>${F?'<button class="b" data-a="sfcsv">Download all '+F.n+' frames (CSV)</button>':''}</div>
+   <div class="c" style="border-left:4px solid ${kc}"><h2 style="font-size:19px">${ch?'▲ Charge':'▼ Discharge'}: ${k.label} kit</h2><div class="mu">${day}, ${Tm(s.start)} → ${Tm(s.end)} (${hh(s.dur)})</div><ul class="sum">${said.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+   <div class="g g6" style="margin-bottom:12px">${met}</div>`;
+  if(!F)return head+`<div class="c mu">${CFG.mode==='mqtt'?'Frame-by-frame data is kept on the server for the last 7 days. This entry is older, so only its summary is available.':'No frames for this entry.'}</div>`;
+  const idx=[...Array(Math.min(F.n,600))].map((_,q)=>Math.round(q*(F.n-1)/Math.max(1,Math.min(F.n,600)-1))),pk=a=>idx.map(x=>a[x]),lc=css(COL[k.id]||'--tx');
+  const axis=`<div class="sm mu" style="display:flex;justify-content:space-between"><span>${Tm(F.t[0])}</span><span>${Tm(F.t[Math.floor(F.n/2)])}</span><span>${Tm(F.t[F.n-1])}</span></div>`;
+  const nc=(F.cells[F.n-1]||[]).length,devAll=idx.map(x=>{const c=F.cells[x]||[],m=c.reduce((p,q)=>p+q,0)/(c.length||1);return c.map(v=>v-m)}),dLo=Math.min(...devAll.flat()),dHi=Math.max(...devAll.flat());
+  const devSeries=[...Array(nc)].map((_,j)=>({n:'C'+(j+1),d:devAll.map(r=>r[j]),c:CELLC[j%CELLC.length],min:dLo,max:dHi,dp:0}));
+  const ch2=(t,sub,ser,H=170)=>`<div class="c"><h2>${t}</h2><div class="sm mu">${sub}</div>${line(ser,H)}${axis}</div>`;
+  const charts=`<div class="g g2">${ch2('Pack voltage and current','Voltage in the kit colour, current grey dashed.',[{n:'Voltage V',d:pk(F.v),c:lc,dp:2},{n:'Current A',d:pk(F.i),c:css('--mu'),dash:1,dp:1}])}
+   ${ch2('State of charge and temperature','SoC and the highest temperature sensor.',[{n:'SoC %',d:pk(F.soc),c:lc,min:0,max:100,dp:0},{n:'Temp °C',d:pk(F.temp),c:css('--wn'),dp:0}])}</div>
+   <div class="c"><h2>Cell imbalance: each cell minus the pack average (mV)</h2><div class="sm mu">Shows which cell runs high or low during this ${ch?'charge':'discharge'}.</div>${line(devSeries,200)}${axis}</div>`;
+  const per=100,pages=Math.ceil(F.n/per),pg=PK.sp=Math.max(0,Math.min(PK.sp||0,pages-1)),x0=pg*per,x1=Math.min(F.n,x0+per);
+  const nav=`<div class="tb"><button class="b" data-a="spg" data-p="0">⏮ First</button><button class="b" data-a="spg" data-p="${pg-1}">◀ Previous</button>
+   <select data-sp="1">${[...Array(pages)].map((_,q)=>`<option value="${q}" ${q===pg?'selected':''}>Page ${q+1} of ${pages}: frames ${q*per+1}–${Math.min(F.n,(q+1)*per)}, ${Tm(F.t[q*per])}–${Tm(F.t[Math.min(F.n,(q+1)*per)-1])}</option>`).join('')}</select>
+   <button class="b" data-a="spg" data-p="${pg+1}">Next ▶</button><button class="b" data-a="spg" data-p="${pages-1}">Last ⏭</button></div>`;
+  let rows='';
+  for(let x=x0;x<x1;x++){const c=F.cells[x]||[],mn=Math.min(...c),mx=Math.max(...c),b=F.bal[x]||[];
+    rows+=`<tr><td>${x+1}</td><td>${T(F.t[x])}</td><td>${f(F.i[x],1)}</td><td>${f(F.v[x],1)}</td><td>${f(F.soc[x],1)}</td><td>${F.temp[x]??''}</td>
+     ${c.map((v,j)=>`<td class="${v===mn?'lo':v===mx?'hi':''}" style="${b.includes(j+1)?'background:color-mix(in srgb,var(--ok) 25%,transparent)':''}">${v}</td>`).join('')}<td>${mx-mn}</td><td>${b.map(q=>'C'+q).join(' ')}</td><td class="sm">${(F.faults[x]||[]).join(', ')}</td></tr>`}
+  return head+charts+`<div class="c"><h2>All frames of this ${ch?'charge':'discharge'}</h2><div class="sm mu">Every reading, ${per} per page. <b style="color:var(--lo)">Blue</b> = lowest cell, <b style="color:var(--hi)">red</b> = highest cell, green background = BMS balancing that cell.</div>
+   ${nav}<div class="hxw"><table class="ft"><tr><th>#</th><th>Time</th><th>Current A</th><th>Voltage V</th><th>SoC %</th><th>Temp °C</th>${[...Array(nc)].map((_,j)=>`<th>C${j+1} mV</th>`).join('')}<th>Δ mV</th><th>Balancing</th><th>BMS alarms</th></tr>${rows}</table></div>${nav}</div>`}
+function sessCsv(){const k=K[sel],s=k&&(PK.sess[k.id]||[]).find(x=>x.sid===PK.open),F=s&&sessFrames(k.id,s);if(!F)return;
+  const nc=(F.cells[F.n-1]||[]).length,r=[['frame','time','current_a','voltage_v','soc_pct','temp_c',...[...Array(nc)].map((_,j)=>`cell${j+1}_mv`),'delta_mv','balancing','bms_alarms'].join(',')];
+  for(let x=0;x<F.n;x++){const c=F.cells[x]||[];r.push([x+1,new Date(F.t[x]).toISOString(),F.i[x],F.v[x],F.soc[x],F.temp[x],...c,c.length?Math.max(...c)-Math.min(...c):'',(F.bal[x]||[]).map(q=>'C'+q).join(' '),(F.faults[x]||[]).join(' ')].join(','))}
+  const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download=`${k.id}-${s.type}-${dkey(s.start)}.csv`;l.click()}
 function histView(k){
-  const {M,rows}=histRows(k);if(!rows.length)return'<div class="c mu">'+(PK.busy[k.id]?'Loading history…':'No history stored yet. It builds up as readings arrive.')+'</div>';
-  const kc=`var(${COL[k.id]||'--tx'})`,mxA=Math.max(1,...rows.map(r=>Math.max(r.ahIn,r.ahOut))),bar=(v,c)=>`<i class="ib" style="width:${Math.round(v/mxA*60)}px;background:var(${c})"></i>`;
-  const tr=rows.map(r=>{const eff=r.whIn>1?r.whOut/r.whIn*100:null,tA=r.tN?r.tSum/r.tN:null;
-    return`<tr><td><b>${histName(r,M)}</b>${M?` <span class="mu sm">${r.days} days</span>`:''}</td><td>${f(r.ahIn,1)}${bar(r.ahIn,'--ok')}</td><td>${f(r.whIn/1000,2)}</td><td>${f(r.ahOut,1)}${bar(r.ahOut,'--wn')}</td><td>${f(r.whOut/1000,2)}</td><td>${f(r.ahIn-r.ahOut,1)}</td><td>${eff==null?'n/a':f(eff,0)+' %'}</td>
-     <td>${r.socA==null?'n/a':f(r.socA,0)+' → '+f(r.socB,0)+' %'}</td><td>${r.socMin>100?'n/a':f(r.socMin,0)+' to '+f(r.socMax,0)+' %'}</td><td>${f(r.pkIn,1)}</td><td>${f(r.pkOut,1)}</td><td>${tA==null?'n/a':f(tA)}</td>
-     <td class="${r.tMax>=TH.tWarn?'abw':''}">${r.tMax<-90?'n/a':r.tMax}</td><td class="${r.dMax>=TH.dCrit?'ab':r.dMax>=TH.dWarn?'abw':''}">${r.dMax}</td><td>${r.sess}</td><td>${Math.round(r.balS/60)} min</td><td class="${r.alarms?'ab':''}">${r.alarms}</td></tr>`}).join('');
-  const S=q=>rows.reduce((a,r)=>a+r[q],0),Mx=q=>Math.max(...rows.map(r=>r[q])),
-   tot=`<tr class="tot"><td>Total, ${rows.length} ${M?'months':'days'}</td><td>${f(S('ahIn'),1)}</td><td>${f(S('whIn')/1000,2)}</td><td>${f(S('ahOut'),1)}</td><td>${f(S('whOut')/1000,2)}</td><td>${f(S('ahIn')-S('ahOut'),1)}</td><td>${S('whIn')>1?f(S('whOut')/S('whIn')*100,0)+' %':'n/a'}</td><td></td><td></td><td>${f(Mx('pkIn'),1)}</td><td>${f(Mx('pkOut'),1)}</td><td></td><td>${Mx('tMax')<-90?'n/a':Mx('tMax')}</td><td>${Mx('dMax')}</td><td>${S('sess')}</td><td>${Math.round(S('balS')/60)} min</td><td>${S('alarms')}</td></tr>`;
+  const {M,rows}=histRows(k),qm=qualDays(k.id);
+  if(PK.open){const s=(PK.sess[k.id]||[]).find(x=>x.sid===PK.open);if(s)return sessDetail(k,s,qm)}
+  if(!rows.length)return'<div class="c mu">'+(PK.busy[k.id]?'Loading history…':'No history stored yet. It builds up as readings arrive.')+'</div>';
+  const kc=`var(${COL[k.id]||'--tx'})`,lc=css(COL[k.id]||'--tx'),nq=nowQ(k.id,qm),m=k.last,p=m?m.pack:null,cur=rows[0],per=M?'This month':'Today';
+  const dNow=m?m.cells.delta_mv:cur.dMax,dSt=imbSt(dNow),soc=p?p.soc_pct:(cur.socB==null?0:cur.socB),socSt=soc<=TH.socCrit?'Replace':soc<=TH.socWarn?'Watch':'Good';
+  const sohS=nq.soh==null?'Unknown':sohSt(nq.soh),irS=irSt(nq.rise);
+  const card=(ic,ttl,big,unit,pill,txt,extra)=>`<div class="hxc" style="--kc:${kc}"><div class="hxt">${ic} ${ttl}</div><div class="hxb">${big}<span>${unit}</span></div>${pill||''}${extra||''}<div class="hxs">${txt}</div></div>`;
+  const cards=`<div class="hxc" style="--kc:${kc}"><div class="hxt">⚡ Charge &amp; discharge · ${per}</div><div class="hx2"><div><small>Charged in</small><b style="color:var(--ok)">▲ ${f(cur.ahIn,1)}</b> <span class="sm mu">Ah</span></div><div><small>Used (discharged)</small><b style="color:var(--wn)">▼ ${f(cur.ahOut,1)}</b> <span class="sm mu">Ah</span></div></div><div class="hxs">${cur.ahIn>=cur.ahOut?'More energy went in than came out.':'More energy was used than charged.'}</div></div>`+
+   card('⚖️','Cell imbalance',f(dNow,0),'mV',hpill(dSt,dSt==='Good'?'Cells matched':dSt==='Watch'?'Drifting apart':'Too high'),'Gap between highest and lowest cell. Lower is better.')+
+   card('🔧','Internal resistance',nq.ir==null?'n/a':f(nq.ir,2),nq.ir==null?'':'mΩ',nq.rise==null?hpill('Unknown','Not measured yet'):hpill(irS,(nq.rise>0?'+':'')+f(nq.rise,0)+'% vs new'),nq.ir==null?'Measured when the current changes by a few amps.':'Typical cell. Lower is better; rises as the battery ages.')+
+   card('🔋','Charge level (SoC)',f(soc,0),'%',hpill(socSt,socSt==='Good'?'Good':socSt==='Watch'?'Low':'Almost empty'),p?(p.current_a>.5?'Charging now.':p.current_a<-.5?'Being used now.':'Standing by.'):'Last known level.',`<div class="bar"><i style="width:${Math.max(0,Math.min(100,soc))}%;background:${lc}"></i></div>`)+
+   card('❤️','Battery health (SoH)',nq.soh==null?'n/a':f(nq.soh,1),nq.soh==null?'':'%',nq.soh==null?hpill('Unknown','Not measured yet'):hpill(sohS,sohS==='Good'?'Great shape':sohS==='Watch'?'Ageing':'Low capacity'),nq.soh==null?'Needs a full charge from a low level to measure.':'Capacity compared with a new battery. Higher is better.',nq.soh==null?'':`<div class="bar"><i style="width:${Math.max(0,Math.min(100,nq.soh))}%;background:var(${CST[sohS]})"></i></div>`);
   const ser=rows.slice(0,M?12:31).reverse(),mc=Math.max(1,...ser.map(r=>Math.max(r.ahIn,r.ahOut))),bw=700/ser.length,step=Math.ceil(ser.length/12);
   const svg=`<svg viewBox="0 0 700 230"><line x1="0" x2="700" y1="105" y2="105" stroke="var(--ln)"/>${ser.map((r,i)=>{const a=r.ahIn/mc*95,b=r.ahOut/mc*95,x=i*bw+bw*.12;
-    return`<rect x="${x.toFixed(1)}" y="${(105-a).toFixed(1)}" width="${(bw*.76).toFixed(1)}" height="${a.toFixed(1)}" rx="2" fill="var(--ok)"><title>${histName(r,M)}: charged ${f(r.ahIn,1)} Ah</title></rect><rect x="${x.toFixed(1)}" y="105" width="${(bw*.76).toFixed(1)}" height="${b.toFixed(1)}" rx="2" fill="var(--wn)"><title>${histName(r,M)}: discharged ${f(r.ahOut,1)} Ah</title></rect>${i%step===0?`<text x="${(x+bw*.38).toFixed(1)}" y="${M?224:222}" text-anchor="middle" font-size="10" fill="var(--mu)">${M?new Date(r.d+'-01T12:00:00').toLocaleDateString('en-GB',{month:'short'}):r.d.slice(8)}</text>`:''}`}).join('')}</svg>`;
+    return`<rect x="${x.toFixed(1)}" y="${(105-a).toFixed(1)}" width="${(bw*.76).toFixed(1)}" height="${a.toFixed(1)}" rx="2" fill="var(--ok)"><title>${histName(r,M)}: charged ${f(r.ahIn,1)} Ah</title></rect><rect x="${x.toFixed(1)}" y="105" width="${(bw*.76).toFixed(1)}" height="${b.toFixed(1)}" rx="2" fill="var(--wn)"><title>${histName(r,M)}: discharged ${f(r.ahOut,1)} Ah</title></rect>${i%step===0?`<text x="${(x+bw*.38).toFixed(1)}" y="222" text-anchor="middle" font-size="10" fill="var(--mu)">${M?new Date(r.d+'-01T12:00:00').toLocaleDateString('en-GB',{month:'short'}):r.d.slice(8)}</text>`:''}`}).join('')}</svg>`;
+  const SS=(PK.sess[k.id]||[]).map(s=>({...s,ir:sessIr(k.id,s,qm),so:qFor(qm,dkey(s.start),false,'soh')}));
+  const Tm=t=>new Date(t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),sum=(a,q)=>a.reduce((p,x)=>p+x[q],0),avg=(a,q)=>{const v=a.map(x=>x[q]).filter(x=>x!=null);return v.length?v.reduce((p,x)=>p+x,0)/v.length:null};
+  const typ=t=>t==='charge'?'<span class="hp Good">▲ Charge</span>':'<span class="hp Warning">▼ Discharge</span>',col=t=>t==='charge'?'var(--ok)':'var(--wn)',dash='<span class="mu">–</span>';
+  const cell=(s,time,go)=>`<td>${time}</td><td>${typ(s.type)}</td><td><b style="color:${col(s.type)}">${f(s.ah,1)}</b> <span class="sm mu">Ah · ${f(s.wh/1000,2)} kWh</span></td><td>${dur(s.dur/3600)}</td><td>${f(s.socA,0)} → ${f(s.socB,0)} <span class="sm mu">%</span></td>
+     <td>${hpill(imbSt(s.dMax),Math.round(s.dMax)+' mV')}</td><td>${s.ir==null?dash:f(s.ir,2)+' <span class="sm mu">mΩ</span>'}</td><td>${s.so==null?dash:hpill(sohSt(s.so),f(s.so,1)+' %')}</td><td class="mu">${go}</td>`;
+  const G={};SS.forEach(s=>{const key=M?dkey(s.start).slice(0,7):dkey(s.start);(G[key]=G[key]||[]).push(s)});
+  const body=Object.keys(G).sort().reverse().map(key=>{const g=G[key],ci=g.filter(x=>x.type==='charge').sort((a,b)=>a.start-b.start),di=g.filter(x=>x.type==='discharge').sort((a,b)=>a.start-b.start);
+    const hd=`<tr class="hxh"><td colspan="9"><b>${histName({d:key},M)}</b> &nbsp; <span style="color:var(--ok)">▲ ${f(sum(ci,'ah'),1)} Ah charged (${ci.length})</span> &nbsp;·&nbsp; <span style="color:var(--wn)">▼ ${f(sum(di,'ah'),1)} Ah used (${di.length})</span></td></tr>`;
+    if(!M)return hd+[...ci,...di].map(s=>`<tr class="hxr" data-a="sopen" data-sid="${s.sid}">${cell(s,Tm(s.start)+' → '+Tm(s.end),'View ›')}</tr>`).join('');
+    return hd+[ci,di].filter(a=>a.length).map(a=>{const s={type:a[0].type,ah:sum(a,'ah'),wh:sum(a,'wh'),dur:sum(a,'dur'),socA:avg(a,'socA'),socB:avg(a,'socB'),dMax:Math.max(...a.map(x=>x.dMax)),ir:avg(a,'ir'),so:avg(a,'so')};
+      return`<tr class="hxr" data-a="pper" data-s="day">${cell(s,a.length+' session'+(a.length>1?'s':''),'Day view ›')}</tr>`}).join('')}).join('')||`<tr><td colspan="9" class="mu">No charge or discharge logged yet. Entries appear as soon as the battery is charged or used.</td></tr>`;
+  const tbl=`<div class="hxw"><table class="hxd"><thead><tr><th>${M?'Sessions':'Time'}</th><th>Action</th><th>Energy</th><th>Duration</th><th>SoC (start → end)</th><th>Cell imbalance</th><th>Internal resistance</th><th>Battery health (SoH)</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
   const first=rows[rows.length-1],last=rows[0];
   return`<div class="tb" style="justify-content:space-between"><div class="seg" style="--kc:${kc}">${[['day','Per day'],['month','Per month']].map(([v,l])=>`<button data-a="pper" data-s="${v}" class="${PK.per===v?'on':''}">${l}</button>`).join('')}</div>
-   <div><span class="sm mu"><span class="live"></span>Today updates live. ${M?'':'Showing '+rows.length+' days, '+histName(first,0)+' to '+histName(last,0)+'.'}</span> <button class="b p" data-a="hcsv">Export CSV</button></div></div>
+   <div><span class="sm mu"><span class="live"></span>Today updates live. ${M?'':'Showing '+rows.length+' days, '+histName(first,0)+' to '+histName(last,0)+'.'}${CFG.mode==='mqtt'?'':' Simulator: log entries, resistance and health are demo values.'}</span> <button class="b p" data-a="hcsv">Export CSV</button></div></div>
+  <div class="hxg">${cards}</div>
   <div class="c"><h2>Charge (up) and discharge (down), Ah ${M?'per month':'per day'}</h2><div class="sm mu">Green = energy charged in, orange = energy discharged out. Hover a bar for the value.</div>${svg}</div>
-  <div class="c"><h2>${M?'Monthly':'Daily'} datasheet</h2><div class="sm mu">Newest first. Charge/discharge sums come from the pack's current readings. Days older than the server's 7-day window are kept in this browser once the page has seen them.</div>
-   <div class="ds" style="margin-top:8px"><table><thead><tr><th>${M?'Month':'Date'}</th>${HCOLS.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${tr}</tbody><tfoot>${tot}</tfoot></table></div></div>`}
+  <div class="c"><h2>Charge &amp; discharge log</h2><div class="sm mu">Every charge and every discharge is its own entry, newest first${M?'':'; in each day the charges are listed first, the discharges below'}. <b>${M?'Click a row to open that month by day.':'Click an entry to open the whole session: summary, graphs and every frame.'}</b> “–” = not measured.</div>
+   <div style="margin-top:10px">${tbl}</div></div>`}
 function histCsv(){const k=K[sel];if(!k)return;const {M,rows}=histRows(k),r=[[M?'month':'date','charged_ah','charged_kwh','discharged_ah','discharged_kwh','net_ah','efficiency_pct','soc_start','soc_end','soc_min','soc_max','peak_charge_a','peak_discharge_a','avg_temp_c','max_temp_c','max_imbalance_mv','charge_sessions','balancing_min','bms_alarms'].join(',')];
   rows.forEach(x=>r.push([x.d,f(x.ahIn,2),f(x.whIn/1000,3),f(x.ahOut,2),f(x.whOut/1000,3),f(x.ahIn-x.ahOut,2),x.whIn>1?f(x.whOut/x.whIn*100,1):'',x.socA==null?'':f(x.socA,1),x.socB==null?'':f(x.socB,1),x.socMin>100?'':f(x.socMin,1),f(x.socMax,1),f(x.pkIn,1),f(x.pkOut,1),x.tN?f(x.tSum/x.tN,1):'',x.tMax<-90?'':x.tMax,x.dMax,x.sess,Math.round(x.balS/60),x.alarms].join(',')));
   const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download=`${k.id}-${M?'monthly':'daily'}-history.csv`;l.click()}
@@ -636,15 +778,16 @@ function render(){
   const live=CFG.mode==='mqtt',ok=live?conn==='connected':true;
   $('#pill').innerHTML=`<span class="pill"><span class="dot ${ok?'on':'bad'}"></span>${live?'Live MQTT: '+conn:'Simulator running'}</span>`;
   if(tab==='db'){if(DBV.drawn===DBV.ver)return;DBV.drawn=DBV.ver}
-  if(tab==='packs'){const key=[sel,PK.ver,PK.sub,PK.per,FR.ver,Object.keys(K).length,PK.sub==='history'?Math.floor(Date.now()/5000):0].join('/');
+  if(tab==='packs'){const key=[sel,PK.ver,PK.sub,PK.per,FR.ver,Object.keys(K).length,PK.sub==='history'&&!PK.open?Math.floor(Date.now()/5000):0,PK.open||'',PK.sp].join('/');
     if(PK.drawn===key){const g=$('#pkG');if(g){g.innerHTML=packGrid();if(PK.sub==='cells'){const b=$('#pkB');if(b)b.innerHTML=cellsView(K[sel]||Object.values(K)[0])}}return}
-    PK.drawn=key;const ds=$('.ds'),sy=ds?ds.scrollTop:0,sx=ds?ds.scrollLeft:0;$('#view').innerHTML=vPacks();const n=$('.ds');if(n){n.scrollTop=sy;n.scrollLeft=sx}return}
+    PK.drawn=key;const ds=$('.hxw')||$('.ds'),sy=ds?ds.scrollTop:0,sx=ds?ds.scrollLeft:0;$('#view').innerHTML=vPacks();const n=$('.hxw')||$('.ds');if(n){n.scrollTop=sy;n.scrollLeft=sx}return}
   if(tab==='report'){const key=[FR.ver,sel,RP.page,FR.busy,Object.keys(K).length].join('/');if(RP.drawn===key)return;RP.drawn=key}
   $('#view').innerHTML={overview:vOverview,report:vReport,packs:vPacks,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
   if(tab==='report'&&RP.scroll){RP.scroll=false;const e=$('#rpf');if(e)e.scrollIntoView()}
 }
 document.addEventListener('change',e=>{const x=e.target.closest('[data-f]');if(x){dbq[x.dataset.f]=x.value;refreshDB()}});
 document.addEventListener('change',e=>{if(e.target.dataset.rp){RP.page=+e.target.value;RP.scroll=true;render()}});
+document.addEventListener('change',e=>{if(e.target.dataset.sp){PK.sp=+e.target.value;render()}});
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
   if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}if(tab==='packs'){PK.drawn=''}if(tab==='report'){RP.drawn=''}}
@@ -654,7 +797,11 @@ document.addEventListener('click',e=>{
   else if(a==='psub'){PK.sub=b.dataset.s}
   else if(a==='pper'){PK.per=b.dataset.s}
   else if(a==='hcsv'){histCsv();return}
-  else if(a==='sel'){sel=b.dataset.k}
+  else if(a==='sopen'){PK.open=b.dataset.sid;PK.sp=0}
+  else if(a==='sback'){PK.open=null}
+  else if(a==='spg'){PK.sp=+b.dataset.p}
+  else if(a==='sfcsv'){sessCsv();return}
+  else if(a==='sel'){sel=b.dataset.k;PK.open=null}
   else if(a==='ack'){const x=ALARMS.find(z=>z.kit===b.dataset.k&&z.key===b.dataset.key);if(x)x.ack=true}
   else if(a==='inj'){inject(b.dataset.t,b.dataset.k)}
   else if(a==='reset'){Object.values(K).forEach(k=>{k.eIn=k.eOut=k.ahOut=k.peak=k.tSum=k.tN=0;k.first=Date.now()})}
