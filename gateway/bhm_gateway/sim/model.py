@@ -26,6 +26,10 @@ OCV_TABLE = (
 )
 OCV_OVERCHARGE_SLOPE = 15.0   # V per unit SOC above 100 %: a 3.60 V CV ends near 101 %
 SURFACE_CHARGE_TAU_S = 1200
+# Near full, lithium diffusion in the LiFePO4 cathode slows down: the polarisation resistance
+# rises steeply above ~90 % SOC. That is what makes a real CV phase taper over 15-30 min
+# instead of collapsing in a minute. r1 is multiplied by 1 + GAIN * x^2, x = (soc - 0.9) / 0.1.
+TOP_POLAR_GAIN = 30.0
 _OCV_SOC = [s for s, _ in OCV_TABLE]
 
 CELL_NOMINAL_V = 3.2
@@ -63,6 +67,8 @@ class PackSpec:
     max_charge_a: float | None = None  # charge overcurrent alarm L1   (default 0.5 C)
     max_discharge_a: float | None = None  # discharge overcurrent L1   (default 1 C)
     port: str | None = None            # None = PTY, /dev/... = serial, tcp:[host:]port
+    weak: str | None = None            # "CELL:PCT": that cell has PCT % of the others' capacity
+    hir: str | None = None             # "CELL:FACTOR": that cell's internal resistance x FACTOR
 
     @property
     def nominal_v(self) -> float:
@@ -83,6 +89,7 @@ _SPEC_KEYS = {
     "ambient": ("ambient_c", float), "profile": ("profile", str),
     "charge_a": ("charge_a", float), "load_a": ("load_a", float),
     "max_charge_a": ("max_charge_a", float), "max_discharge_a": ("max_discharge_a", float),
+    "weak": ("weak", str), "hir": ("hir", str),
 }
 
 
@@ -120,7 +127,28 @@ def parse_spec(text: str) -> PackSpec:
         raise ValueError(f"{name}: Daly supports 1..48 cells")
     if not 0 <= spec.temp_sensors <= 16:
         raise ValueError(f"{name}: temps must be 0..16")
+    for key in ("weak", "hir"):
+        if getattr(spec, key) is not None:
+            cell_factor(getattr(spec, key), spec.cells, key)
     return spec
+
+
+def cell_factor(text: str, cells: int, what: str = "weak") -> tuple[int, float]:
+    """"3:92" -> (2, 0.92) for weak (percent), "2:1.6" -> (1, 1.6) for hir (factor)."""
+    try:
+        cell, _, val = text.partition(":")
+        k = int(cell) - 1
+        f = float(val) if val else (70.0 if what == "weak" else 1.6)
+    except ValueError:
+        raise ValueError(f"{what} must be CELL:{'PCT' if what == 'weak' else 'FACTOR'}, "
+                         f"got {text!r}") from None
+    if not 0 <= k < cells:
+        raise ValueError(f"{what}: cell must be 1..{cells}")
+    if what == "weak":
+        f /= 100
+    if not 0.05 <= f <= 10:
+        raise ValueError(f"{what}: value out of range in {text!r}")
+    return k, f
 
 
 @dataclass
@@ -136,13 +164,17 @@ class Cell:
     def voltage(self, current: float) -> float:
         return ocv(self.soc) + current * self.r0 + self.v1
 
+    def r1_now(self) -> float:
+        x = max(0.0, (self.soc - 0.90) / 0.10)
+        return self.r1 * (1 + TOP_POLAR_GAIN * x * x)
+
     def step(self, current: float, dt: float) -> None:
         self.soc += current * dt / 3600 / self.capacity_ah - self.leak_per_s * dt
         if self.soc > 1.0:    # surface charge above full fades: rests back to ~3.45 V
             self.soc -= (self.soc - 1.0) * (1 - math.exp(-dt / SURFACE_CHARGE_TAU_S))
         self.soc = min(1.03, max(-0.05, self.soc))
         a = math.exp(-dt / self.tau_s)
-        self.v1 = self.v1 * a + current * self.r1 * (1 - a)
+        self.v1 = self.v1 * a + current * self.r1_now() * (1 - a)
 
 
 class Pack:
@@ -154,6 +186,9 @@ class Pack:
         soc0 = (spec.soc if spec.soc is not None else rng.uniform(35, 85)) / 100
         r0 = 0.1 / spec.capacity_ah          # 1 mOhm for a 100 Ah prismatic cell
         caps = [real_ah * rng.gauss(1, 0.008) for _ in range(spec.cells)]
+        if spec.weak:           # an aged cell, still top-balanced with the others
+            k, f = cell_factor(spec.weak, spec.cells, "weak")
+            caps[k] *= f
         mean_cap = sum(caps) / len(caps)
         # Top-balanced like an assembled pack: every cell is the same Ah away from full,
         # so cells agree at the top and the capacity spread shows up near empty.
@@ -165,7 +200,12 @@ class Pack:
                  leak_per_s=rng.uniform(0.01, 0.03) / (30 * 86400))
             for cap in caps
         ]
+        if spec.hir:
+            k, f = cell_factor(spec.hir, spec.cells, "hir")
+            self.cells[k].r0 *= f
+            self.cells[k].r1 *= f
         self.nominal_capacity = [c.capacity_ah for c in self.cells]
+        self.nominal_r = [(c.r0, c.r1) for c in self.cells]
         self.current = 0.0
         self.temp_c = spec.ambient_c
         self.sensor_offset = [rng.uniform(-0.6, 0.6) for _ in range(spec.temp_sensors)]
@@ -205,7 +245,8 @@ class Pack:
              bleed: dict[int, float] | None = None) -> None:
         bleed = bleed or {}
         self.current = current
-        heat = current * current * self.resistance() + sum(c.v1 * c.v1 / c.r1 for c in self.cells)
+        heat = current * current * self.resistance() + sum(c.v1 * c.v1 / c.r1_now()
+                                                           for c in self.cells)
         for k, cell in enumerate(self.cells):
             cell.step(current - bleed.get(k, 0.0), dt)
         heat += sum(a * 3.3 for a in bleed.values())

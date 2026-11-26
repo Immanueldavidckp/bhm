@@ -39,6 +39,11 @@ class Publisher:
         self.status_topic = status_topic
         self.connected = threading.Event()
         self.sent = 0
+        # for the status screen (monotonic times, shared across processes on Linux)
+        self.connected_since: float | None = None
+        self.last_error: str | None = None
+        self.last_sent: float | None = None
+        self.last_ack_by_topic: dict[str, float] = {}
 
         c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=cfg.client_id,
                         protocol=mqtt.MQTTv311, clean_session=True)
@@ -59,13 +64,17 @@ class Publisher:
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code.is_failure:
             log.error("MQTT connect refused: %s", reason_code)
+            self.last_error = f"broker refused login: {reason_code}"
             return
         log.info("MQTT connected to %s:%d", self.cfg.host, self.cfg.port)
+        self.connected_since = time.monotonic()
+        self.last_error = None
         client.publish(self.status_topic,
                        json.dumps({"state": "online", "ts": _now()}), qos=1, retain=True)
         self.connected.set()
 
     def _on_connect_fail(self, client, userdata):
+        self.last_error = "broker unreachable"
         if time.monotonic() - self._last_fail_log > 60:
             self._last_fail_log = time.monotonic()
             log.warning("cannot reach MQTT broker %s:%d (network, DNS, TLS certificate or "
@@ -74,7 +83,9 @@ class Publisher:
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         self.connected.clear()
+        self.connected_since = None
         if reason_code.is_failure:
+            self.last_error = f"disconnected: {reason_code}"
             log.warning("MQTT disconnected: %s (will retry)", reason_code)
 
     # -- lifecycle --
@@ -106,10 +117,10 @@ class Publisher:
             info = self.client.publish(topic, payload, qos=qos, retain=retain)
             if info.rc != mqtt.MQTT_ERR_SUCCESS:
                 break
-            pending.append((rid, info))
+            pending.append((rid, topic, info))
         done = []
         deadline = time.monotonic() + ack_timeout
-        for rid, info in pending:
+        for rid, topic, info in pending:
             try:
                 info.wait_for_publish(timeout=max(0.0, deadline - time.monotonic()))
             except (RuntimeError, ValueError):
@@ -117,8 +128,11 @@ class Publisher:
             if not info.is_published():
                 break
             done.append(rid)
+            self.last_ack_by_topic[topic] = time.monotonic()
         self.buffer.delete(done)
         self.sent += len(done)
+        if done:
+            self.last_sent = time.monotonic()
         return len(done)
 
 

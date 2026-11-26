@@ -76,6 +76,12 @@ class Gateway:
         self._seq: dict[str, int] = defaultdict(int)
         self._online: dict[str, bool | None] = {b.id: None for b in cfg.batteries}
         self._faults: dict[str, frozenset] = {}
+        # per battery, for the status screen: last good reading and the latest error
+        self._live: dict[str, dict] = {b.id: {"reads": 0, "fails": 0, "last_ok": None,
+                                              "last_try": None, "error": None, "data": None}
+                                       for b in cfg.batteries}
+        self.waiting_for_clock = False
+        self._status_err_logged = False
 
     # ---------------------------------------------------------------- polling
     def _enqueue(self, topic: str, obj: dict, retain: bool = False) -> None:
@@ -107,11 +113,16 @@ class Gateway:
         self._enqueue(self.topics.status(bat.id), msg, retain=True)
 
     def poll_once(self, bat: BatteryConfig, bms: DalyBMS) -> None:
+        live = self._live[bat.id]
+        live["last_try"] = time.monotonic()
         try:
             data = bms.read_all()
         except DalyError as e:
+            live["fails"] += 1
+            live["error"] = str(e)
             self._set_online(bat, False, str(e))
             return
+        live.update(reads=live["reads"] + 1, last_ok=time.monotonic(), error=None, data=data)
         self._set_online(bat, True)
         msg = self._envelope(bat) | data
         self._enqueue(self.topics.telemetry(bat.id), msg)
@@ -161,9 +172,79 @@ class Gateway:
                           for k, v in self._online.items()},
         }
 
+    # ---------------------------------------------------------------- status file
+    def status(self) -> dict:
+        """Live state for the LCD screen and `bhm_gateway status`.
+
+        Times are time.monotonic() values: CLOCK_MONOTONIC is system-wide on Linux, so a
+        reader on the same board computes ages that do not jump when NTP sets the clock.
+        """
+        pub = self.publisher
+        bats = []
+        for b in self.cfg.batteries:
+            live = self._live[b.id]
+            d = live["data"]
+            ent = {
+                "id": b.id, "port": b.port, "nominal_voltage": b.nominal_voltage,
+                "state": {True: "online", False: "offline", None: "unknown"}[self._online[b.id]],
+                "reads": live["reads"], "fails": live["fails"],
+                "last_ok": live["last_ok"], "last_try": live["last_try"],
+                "error": live["error"],
+                "last_upload": pub.last_ack_by_topic.get(self.topics.telemetry(b.id)),
+            }
+            if d:
+                pk, cl, tp = d["pack"], d["cells"], d["temps"]
+                ent.update({
+                    "soc_pct": pk.get("soc_pct"), "voltage_v": pk.get("voltage_v"),
+                    "current_a": pk.get("current_a"), "power_w": pk.get("power_w"),
+                    "pack_state": pk.get("state"), "cycles": pk.get("cycles"),
+                    "cell_count": cl["count"], "cell_min_mv": cl["min_mv"],
+                    "cell_max_mv": cl["max_mv"], "cell_delta_mv": cl["delta_mv"],
+                    "temp_max_c": tp["max_c"], "temp_min_c": tp["min_c"],
+                    "faults": list(d["faults"]),
+                })
+            bats.append(ent)
+        return {
+            "schema": 1, "mono": time.monotonic(), "time": time.time(),
+            "version": __version__, "site": self.cfg.gateway.site_id, "boot_id": self.boot_id,
+            "pid": os.getpid(), "uptime_s": int(time.monotonic() - self.started),
+            "poll_interval_s": self.cfg.gateway.poll_interval_s,
+            "clock_ok": clock_ok(), "waiting_for_clock": self.waiting_for_clock,
+            "mqtt": {
+                "host": self.cfg.mqtt.host, "port": self.cfg.mqtt.port,
+                "client_id": self.cfg.mqtt.client_id,
+                "connected": pub.connected.is_set(), "since": pub.connected_since,
+                "last_error": pub.last_error, "sent": pub.sent, "last_sent": pub.last_sent,
+                "queued": len(self.buffer), "dropped": self.buffer.dropped,
+            },
+            "batteries": bats,
+        }
+
+    def write_status(self) -> None:
+        path = self.cfg.gateway.status_path
+        if not path:
+            return
+        try:
+            tmp = f"{path}.tmp"
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(tmp, "w") as f:
+                json.dump(self.status(), f, separators=(",", ":"))
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, path)       # readers never see a half-written file
+        except Exception as e:
+            if not self._status_err_logged:
+                self._status_err_logged = True
+                log.warning("cannot write status file %s: %s", path, e)
+
+    def _status_loop(self) -> None:
+        while not self.stop_event.is_set():
+            self.write_status()
+            self.stop_event.wait(1.0)
+
     def wait_for_clock(self) -> None:
         if clock_ok():
             return
+        self.waiting_for_clock = True
         log.warning("system clock is wrong (%s, before this software was installed): waiting "
                     "for NTP before reading batteries. Check network and systemd-timesyncd.",
                     _now())
@@ -172,6 +253,7 @@ class Gateway:
             waited += 5
             if clock_ok():
                 log.info("clock set by NTP (%s) after %d s", _now(), waited)
+                self.waiting_for_clock = False
                 return
             if waited % 300 == 0:
                 log.warning("still waiting for a correct clock (%s)", _now())
@@ -179,6 +261,8 @@ class Gateway:
     def run(self) -> None:
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: self.stop_event.set())
+        status_thread = threading.Thread(target=self._status_loop, name="status", daemon=True)
+        status_thread.start()
         self.wait_for_clock()
         if self.stop_event.is_set():
             return
@@ -211,4 +295,10 @@ class Gateway:
                 w.join(timeout=5)
             self.publisher.drain(ack_timeout=3)
             self.publisher.stop()
+            status_thread.join(timeout=2)
+            if self.cfg.gateway.status_path:
+                try:
+                    os.unlink(self.cfg.gateway.status_path)   # screen shows "not running"
+                except OSError:
+                    pass
             self.buffer.close()

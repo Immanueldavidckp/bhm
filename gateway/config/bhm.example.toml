@@ -25,7 +25,8 @@ password_file = "${CREDENTIALS_DIRECTORY}/mqtt_password" # provided by systemd L
 # Daly RS485 has no usable bus address on stock firmware: give each BMS its own adapter.
 #
 # Without batteries: `systemctl start bhm-sim` and use port = "/run/bhm-sim/kit12v" etc.,
-# or point at a simulator on a PC with port = "socket://<pc-ip>:7001".
+# or point at a simulator on a PC with port = "socket://<pc-ip>:7001", or over the console
+# UART with `systemctl start bhm-uartlink` and port = "/run/bhm-uart/kit12v" etc.
 
 [[battery]]
 id = "kit12v"

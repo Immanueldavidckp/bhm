@@ -51,6 +51,7 @@ class GatewayConfig:
     buffer_path: str = "/var/lib/bhm/buffer.db"
     buffer_max_rows: int = 200_000
     log_level: str = "INFO"
+    status_path: str = "/run/bhm/status.json"   # live state for the LCD app / `status` ("" = off)
 
 
 @dataclass
@@ -130,4 +131,5 @@ def load(path: str | os.PathLike) -> Config:
                           "(cert_file/key_file) and/or username + password")
 
     gw.buffer_path = _expand(gw.buffer_path)
+    gw.status_path = _expand(gw.status_path)
     return Config(gateway=gw, mqtt=mq, batteries=bats)

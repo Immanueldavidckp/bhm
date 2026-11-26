@@ -370,3 +370,18 @@ def test_windows_mode_tcp_packs_tcp_control_and_pyserial(monkeypatch, tmp_path):
         if serial_port:
             os.close(master)
             os.close(slave)
+
+
+def test_control_errors_say_what_to_do():
+    import socket as _socket
+    from bhm_gateway.sim.server import control_error
+    assert "start the simulator first" in control_error("tcp:127.0.0.1:7000",
+                                                        ConnectionRefusedError(111, "refused"))
+    assert "press Esc" in control_error("tcp:127.0.0.1:7000", _socket.timeout("timed out"))
+    with _socket.socket() as s:                      # a free port nobody listens on
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    out = subprocess.run([sys.executable, "-m", "bhm_gateway", "simctl", "--socket",
+                          f"tcp:127.0.0.1:{port}", "status"], capture_output=True, text=True,
+                         env=ENV, timeout=20)
+    assert out.returncode == 1 and "start the simulator first" in out.stderr

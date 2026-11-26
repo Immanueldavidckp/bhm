@@ -64,6 +64,26 @@ Daly BMS 48V ─RS485─[USB adapter]─┘     (SQLite store-and-forward buffer
 > **One adapter per BMS:** stock Daly firmware answers every request on the bus, so the three
 > BMSes cannot share one RS485 line. Use three adapters, or a USB hub, on the MP135.
 
+### Status screen (the DK's 4.3" LCD) and `status`
+
+The gateway writes its live state to `/run/bhm/status.json` every second. The installer makes
+Weston start the BHM screen instead of ST's demo launcher (`/etc/default/demo-launcher` →
+`/opt/bhm-gateway/bhm-display.sh`; delete that file to get the demo launcher back). It shows:
+
+* **MQTT**: connected to the broker (and for how long), or offline and why
+* **Network**: interface, IP, Wi-Fi name
+* **Upload**: messages sent, still queued on the board, time of the last broker ACK
+* **one card per battery**: `LIVE` (answering and its data reaching the broker),
+  `READING` (answering, data queued because the broker is offline), `NO RESPONSE`
+  (port missing / BMS not answering), `WRONG PACK?` (cell count does not match the configured
+  nominal voltage, e.g. a 4S pack on the 48 V port), plus SOC, V, A, cells, temperature, faults
+* footer: "N of M batteries sharing data with the server"
+
+Same check as text on the console (exit code 0 = all OK):
+```sh
+PYTHONPATH=/opt/bhm-gateway/lib python3 -m bhm_gateway status
+```
+
 ## BMS simulator (no batteries needed)
 
 `python3 -m bhm_gateway sim` behaves like the three Daly BMSes on the wire, with the same
@@ -105,6 +125,31 @@ python3 -m bhm_gateway sim kit12v@/dev/ttyUSB0 kit36v@/dev/ttyUSB1 kit48v@/dev/t
 ```
 Use option B over RS485 to test the wiring and adapters the real BMSes will use. Use
 option A or TCP to test everything above the serial port.
+
+**D. On a PC, over the board's console UART (ST-LINK USB cable, no network needed):**
+the board's only UART to the PC is its console (`ttySTM0` = `/dev/ttyACM0` on the PC), so
+`uartlink` multiplexes the three packs' Daly traffic over it in CRC-checked frames. The board
+side (`bhm-uartlink.service`) takes the console over from the login shell and gives the gateway
+`/run/bhm-uart/kit12v`, `kit36v`, `kit48v`.
+```sh
+# board, once:  port = "/run/bhm-uart/kit12v" etc. in /etc/bhm/bhm.toml; systemctl disable --now bhm-sim
+# PC (close minicom first; --start types `systemctl start bhm-uartlink` into the board's shell):
+python3 -m bhm_gateway sim kit12v kit36v kit48v --link-dir /tmp/bms
+python3 -m bhm_gateway uartlink host --port /dev/ttyACM0 --sim-dir /tmp/bms --start
+```
+On **Windows** (`pip install pyserial`; the COM number is the "STMicroelectronics STLink Virtual
+COM Port" in Device Manager → Ports). Start the packs in the same order as on the board, since the
+board's 1st pack goes to TCP 7001, the 2nd to 7002, and so on:
+```bat
+cd gateway
+python -m bhm_gateway sim kit12v kit36v kit48v
+python -m bhm_gateway uartlink host --port COM5 --start        REM second window
+python -m bhm_gateway uartlink release --port COM5            REM afterwards: board shell back
+```
+`simctl`/`simviz` work on the PC as usual. To get the board's shell back: stop `uartlink host`,
+then `python3 -m bhm_gateway uartlink release`, or press **Enter 3 times** in minicom; a reboot
+always does it too (the service is not enabled at boot). The kernel console log level is
+lowered while the link runs so kernel messages do not land in the stream.
 
 **C. On a Windows laptop** (Python 3.11+; `pip install pyserial` for `probe` and COM ports).
 Windows has no PTYs or Unix sockets, so the simulator uses TCP instead: packs without a port
@@ -160,6 +205,20 @@ for the auto profiles and the same fault and comm commands as `simctl`; click a 
 at it. The page loads three.js from a CDN; the simulator needs no internet. `--bind 0.0.0.0`
 opens it to the LAN.
 
+**Charge test with simulated data** (a 4-hour bench charge, published like the gateway):
+```sh
+python3 -m bhm_gateway --config laptop.toml chargetest        # [mqtt] + one [[battery]] like bhm.toml
+python3 -m bhm_gateway chargetest --dry-run --out msgs.jsonl --truth truth.json
+```
+12 V 4S 100 Ah LiFePO4 at 24 °C, starting at 10 % SOC: 10 min rest, 25 A CC/CV charger (14.4 V),
+a 2 min charger pause at 50 % SOC, charger stops at 5 A, 15 min rest (about 4 h). Cell 3 is aged
+(92 % capacity) and cell 2 has 1.6x the internal resistance. It runs in the simulator in about a
+second, is read every 10 s of simulated time with the real Daly decoders and goes through the real
+gateway code (seq, online/offline, alarms, buffer), with timestamps over the hours before `--end`
+(default now): about 1450 readings, 870 KB, battery id `chargetest12v` ("Charge test 12V" on the
+dashboard). Pack options for any simulated pack: `weak=CELL:PCT`, `hir=CELL:FACTOR`,
+`profile=chargetest`; runtime fault `hir:<cell>[:<factor>]`.
+
 Protection thresholds are typical Daly LiFePO4 defaults and live in
 `gateway/bhm_gateway/sim/firmware.py`. Set them to the values your BMSes are configured with.
 
@@ -181,6 +240,31 @@ docker compose logs -f ingester
   `alarm`, `status_event`, `gateway_health`, view `battery_latest`. Schema: `server-dev/db/schema.sql`.
 * If the laptop's IP changes, re-run `./setup_laptop.sh <new-ip>`, `docker compose restart mosquitto`
   and update `mqtt.host` on the board.
+* **Web dashboard** (service `dashboard`, http://127.0.0.1:8090, user `bhm`, `DASH_PASSWORD` in
+  `.env`): `dashboard.html` reads live telemetry in the browser over MQTT-over-WebSocket.
+  `/` redirects to `/?mode=mqtt&url=ws(s)://<host>/mqtt`; `/mqtt` is proxied by `api/api.py` to
+  Mosquitto's WebSocket listener 9001 (inside the compose network only, anonymous but read-only:
+  `mosquitto/acl-ws`), after the dashboard login (basic auth, or the cookie the page sets).
+  `/?mode=sim` shows the page's built-in demo data. In live mode the page first loads the last
+  240 stored readings per kit from `/api/recent` (MySQL, same JSON as the gateway's MQTT messages),
+  so Overview / Health / Alerts have data while the board is offline; old data is marked "Offline, last data … ago". After editing `dashboard.html`:
+  `docker compose up -d --build dashboard`. Old JSON API (`/api/summary|history|events`) still works.
+* **Battery and cell health** (`api/health.py`, `/api/health`), calculated from the stored readings
+  because the Daly reports neither: **internal resistance of every cell** at each current step
+  of 10 A or more (change in cell voltage ÷ change in current, a 10-second DC IR); **capacity of
+  every cell** from a charge that runs until the charger finishes, started below ~30 % SOC after
+  5 min rest (Ah in ÷ (1 − start SOC from the rested cell voltage)); **pack SOH** = weakest cell ÷
+  rated capacity. Each cell is Good / Watch / Replace against the other cells (IR 1.25x / 1.5x,
+  capacity 95 % / 85 %). Shown in **Health Monitoring**; **Cells & Frames** steps through every
+  reading (`/api/frames`) with the balancing cells and a cell map of all frames.
+* **Charge Report** tab: the whole stored window of one kit as a report — a summary in words (SoC,
+  Ah / kWh in, CC / CV / pause times, voltage, temperature, largest imbalance, balancing per cell,
+  BMS alarms with on/off times, SOH and abnormal cells), the charge phases, 4-hour charts of the
+  pack and of every cell (and each cell minus the pack average), a cell-by-cell table, then **every
+  frame, 100 per page** (lowest / highest cell coloured, balancing cells green), CSV download of all
+  frames, and print / save as PDF.
+* Mosquitto `max_queued_messages 100000`: with the default 1000 the broker dropped part of a
+  backlog burst on its way to the ingester.
 
 ## Next: server side (Oracle Cloud)
 

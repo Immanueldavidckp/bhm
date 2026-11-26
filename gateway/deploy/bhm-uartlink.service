@@ -1,0 +1,30 @@
+[Unit]
+Description=BHM UART link - Daly traffic from a simulator on the PC over the console UART
+# The board's only UART to the PC is the console (ttySTM0 = ST-LINK virtual COM port), so this
+# takes it over from the login shell and gives it back when it stops. Not enabled at boot:
+# a reboot always brings the console back. Give it back without rebooting by pressing Enter
+# 3x in minicom, or `python3 -m bhm_gateway uartlink release` on the PC.
+Conflicts=serial-getty@ttySTM0.service
+After=serial-getty@ttySTM0.service
+Before=bhm-gateway.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+# Override in /etc/bhm/uartlink.env, e.g.  BHM_UARTLINK_ARGS="kit12v kit36v kit48v"
+Environment="BHM_UARTLINK_ARGS=kit12v kit36v kit48v"
+EnvironmentFile=-/etc/bhm/uartlink.env
+Environment=PYTHONPATH=/opt/bhm-gateway/lib PYTHONUNBUFFERED=1
+# PTYs appear as /run/bhm-uart/<pack>, group dialout so the gateway's service user can open them.
+ExecStart=/usr/bin/python3 -m bhm_gateway uartlink board $BHM_UARTLINK_ARGS \
+    --tty /dev/ttySTM0 --link-dir /run/bhm-uart --group dialout
+ExecStopPost=/bin/systemctl --no-block start serial-getty@ttySTM0.service
+Restart=on-failure
+RestartSec=3
+# Runs as root: it owns the console tty and lowers the kernel console log level while it runs.
+RuntimeDirectory=bhm-uart
+RuntimeDirectoryMode=0755
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes

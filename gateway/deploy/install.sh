@@ -22,9 +22,18 @@ install -d -m 0755 /etc/bhm /etc/bhm/certs
 chmod 0600 /etc/bhm/mqtt_password
 [ -f /etc/bhm/certs/client.key ] && chmod 0600 /etc/bhm/certs/client.key
 
+echo "-> LCD status screen (replaces ST's demo launcher at Weston start-up)"
+install -m 0755 "$HERE/bhm-display.sh" /opt/bhm-gateway/bhm-display.sh
+if [ -d /usr/local/weston-start-at-startup ]; then
+  [ -f /etc/default/demo-launcher ] && ! grep -q bhm-display /etc/default/demo-launcher \
+    && cp /etc/default/demo-launcher /etc/default/demo-launcher.orig
+  echo 'DEFAULT_DEMO_APPLICATION=/opt/bhm-gateway/bhm-display.sh' > /etc/default/demo-launcher
+fi
+
 echo "-> systemd unit"
 install -m 0644 "$HERE/bhm-gateway.service" /etc/systemd/system/bhm-gateway.service
 install -m 0644 "$HERE/bhm-sim.service" /etc/systemd/system/bhm-sim.service   # not enabled
+install -m 0644 "$HERE/bhm-uartlink.service" /etc/systemd/system/bhm-uartlink.service   # not enabled
 systemctl daemon-reload
 systemctl enable bhm-gateway.service >/dev/null
 
@@ -51,4 +60,5 @@ else
   systemctl restart bhm-gateway.service
   echo "started. logs: journalctl -u bhm-gateway -f"
 fi
+echo "check: python3 -m bhm_gateway status   (screen: restart Weston or reboot)"
 echo "no batteries yet? systemctl start bhm-sim and point the ports at /run/bhm-sim/<name>"

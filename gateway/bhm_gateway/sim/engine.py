@@ -6,11 +6,11 @@ import math
 import random
 
 from .firmware import FAULT_INDEX, Firmware
-from .model import CHARGER_CELL_V, Pack, PackSpec
+from .model import CHARGER_CELL_V, Pack, PackSpec, cell_factor
 from .profiles import PROFILES
 
 FAULT_HELP = ("short | open_wire:<cell> | ntc_open:<sensor> | weak:<cell>[:<capacity %>] | "
-              "leak:<cell> | <any Daly fault bit name>")
+              "hir:<cell>[:<resistance factor>] | leak:<cell> | <any Daly fault bit name>")
 
 
 class SimBattery:
@@ -96,6 +96,10 @@ class SimBattery:
             k = self._cell(args[0], n, "cell")
             pct = float(args[1]) if len(args) > 1 else 70.0
             self.pack.cells[k].capacity_ah = self.pack.nominal_capacity[k] * pct / 100
+        elif name == "hir":
+            k, f = cell_factor(":".join(args), n, "hir")
+            r0, r1 = self.pack.nominal_r[k]
+            self.pack.cells[k].r0, self.pack.cells[k].r1 = r0 * f, r1 * f
         elif name == "leak":
             self.pack.cells[self._cell(args[0], n, "cell")].leak_per_s = 0.05 / 86400  # 5 %/day
         elif name in FAULT_INDEX:
@@ -111,6 +115,9 @@ class SimBattery:
             b.open_wire.clear()
         if what in ("all", "ntc_open"):
             b.ntc_open.clear()
+        if what in ("all", "hir"):
+            for c, (r0, r1) in zip(self.pack.cells, self.pack.nominal_r):
+                c.r0, c.r1 = r0, r1
         if what in ("all", "weak", "leak"):
             for c, cap in zip(self.pack.cells, self.pack.nominal_capacity):
                 if what != "leak":
@@ -137,6 +144,7 @@ class SimBattery:
             "cells_mv": m.cells_mv, "temps_c": m.temps_c, "ambient_c": round(self.ambient(), 1),
             "cell_soc": [round(c.soc * 100, 1) for c in self.pack.cells],
             "cell_ah": [round(c.capacity_ah, 1) for c in self.pack.cells],
+            "cell_r0_mohm": [round(c.r0 * 1000, 3) for c in self.pack.cells],
             "chg_mos": self.bms.chg_mos, "dis_mos": self.bms.dis_mos,
             "balancing": sorted(k + 1 for k in self.bms.balancing),
             "cycles": self.bms.cycles, "faults": self.bms.faults(), "comm": dict(self.comm),

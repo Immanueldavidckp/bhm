@@ -1,0 +1,4 @@
+# WebSocket listener (9001, dashboard browsers, anonymous): read battery data only, never write.
+topic read bhm/+/+/telemetry
+topic read bhm/+/+/status
+topic read bhm/+/+/alarm

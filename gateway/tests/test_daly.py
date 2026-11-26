@@ -94,3 +94,24 @@ def test_clock_ok(tmp_path):
     flag.touch()
     assert clock_ok(floor=time.time() + 3600, flag=str(flag))      # NTP says it's synced
     assert clock_floor() <= time.time()
+
+
+def test_vanished_port_is_closed_and_reopened():
+    """A PTY whose other end went away fails with termios.error: reopen it next time."""
+    termios = pytest.importorskip("termios")
+
+    class Gone:
+        is_open = True
+        closed = False
+
+        def reset_input_buffer(self):
+            raise termios.error(5, "Input/output error")
+
+        def close(self):
+            self.closed = True
+
+    bms = daly.DalyBMS("/run/bhm-uart/kit12v")
+    bms._ser = gone = Gone()
+    with pytest.raises(daly.DalyError, match="serial error"):
+        bms.request(daly.CMD_SOC)
+    assert gone.closed and bms._ser is None

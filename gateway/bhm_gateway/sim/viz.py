@@ -16,13 +16,13 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .server import connect_control
+from .server import CONTROL_TIMEOUT_S, connect_control, control_error
 
 WEB_DIR = Path(__file__).with_name("web")
 ALLOWED = {"status", "speed", "set", "fault", "clear", "comm"}
 
 
-def control(path: str, line: str, timeout: float = 2.0) -> dict:
+def control(path: str, line: str, timeout: float = CONTROL_TIMEOUT_S) -> dict:
     """Send one command line to the simulator's control socket and return its JSON reply."""
     with connect_control(path, timeout) as s:
         s.sendall(line.strip().encode() + b"\n")
@@ -60,9 +60,10 @@ def make_handler(sock_path: str):
                 return
             try:
                 self._json(control(sock_path, line))
-            except (OSError, ValueError) as e:
-                self._json({"ok": False, "error": f"simulator not reachable at {sock_path}: {e}"},
-                           502)
+            except OSError as e:
+                self._json({"ok": False, "error": control_error(sock_path, e)}, 502)
+            except ValueError as e:
+                self._json({"ok": False, "error": f"bad reply from {sock_path}: {e}"}, 502)
 
         def do_GET(self):
             if self.path in ("/", "/index.html"):

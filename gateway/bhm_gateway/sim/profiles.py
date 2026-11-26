@@ -9,6 +9,9 @@ The engine then applies the BMS MOSFET state, so a tripped BMS really cuts the c
   charge     charger permanently connected (CC/CV, then holds at CV)
   discharge  constant load_a until the BMS cuts it off
   idle       nothing connected
+  chargetest one bench charge test: rest, CC/CV charge with a short charger pause at 50 % SOC
+             (current steps give a mid-SOC internal-resistance reading), charger switches off
+             at 0.05 C, then the pack rests
 """
 
 from __future__ import annotations
@@ -121,4 +124,38 @@ class Drive(Profile):
         return ("power", self.watts) if self.watts else ("idle", 0.0)
 
 
-PROFILES = {p.name: p for p in (Idle, Charge, Discharge, Cycle, Drive)}
+class ChargeTest(Profile):
+    name = "chargetest"
+    REST_BEFORE_S = 10 * 60
+    PAUSE_AT_SOC = 50.0
+    PAUSE_S = 2 * 60
+    REST_AFTER_S = 15 * 60
+
+    def __init__(self, battery, rng):
+        super().__init__(battery, rng)
+        self.paused = False
+        self.go("rest_before")
+
+    @property
+    def done(self) -> bool:
+        return self.phase == "rest_after" and self.t >= self.REST_AFTER_S
+
+    def demand(self, dt):
+        self.t += dt
+        if self.phase == "rest_before" and self.t >= self.REST_BEFORE_S:
+            self.go("charge")
+        elif (self.phase == "charge" and not self.paused
+              and self.b.pack.soc() >= self.PAUSE_AT_SOC):
+            self.paused = True
+            self.go("pause")
+        elif self.phase == "pause" and self.t >= self.PAUSE_S:
+            self.go("charge_2")
+            self.t = 60.0            # the tail-current check is not needed right after a pause
+        elif self.phase in ("charge", "charge_2") and self.charge_finished():
+            self.go("rest_after")
+        if self.phase in ("charge", "charge_2"):
+            return "charge", self.b.spec.charge_a
+        return "idle", 0.0
+
+
+PROFILES = {p.name: p for p in (Idle, Charge, Discharge, Cycle, Drive, ChargeTest)}

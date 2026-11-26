@@ -22,6 +22,12 @@ from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
+try:   # a vanished PTY (simulator or UART link restarted) raises termios.error, not OSError
+    import termios
+    PORT_ERRORS: tuple = (OSError, termios.error)
+except ImportError:  # Windows
+    PORT_ERRORS = (OSError,)
+
 START = 0xA5
 FRAME_LEN = 13
 DATA_LEN = 8
@@ -232,7 +238,7 @@ class DalyBMS:
                 last_err = e
                 log.debug("%s cmd 0x%02X attempt %d failed: %s", self.port, cmd, attempt + 1, e)
                 time.sleep(0.1)
-            except OSError as e:  # unplugged adapter etc. -> reopen next time
+            except PORT_ERRORS as e:  # unplugged adapter, vanished PTY -> reopen next time
                 self.close()
                 raise DalyError(f"serial error on {self.port}: {e}") from e
         raise last_err

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Battery health monitoring system</title>
 <style>
-:root{--bg:#f1f3f2;--card:#fff;--tx:#14201c;--mu:#5d6b66;--ln:#dfe4e2;--ok:#1b8a52;--wa:#b87400;--wn:#d9590b;--cr:#c62f2f;--c12:#b87400;--c36:#0f8577;--c48:#5b45c9;--dk:#14201c}
-@media(prefers-color-scheme:dark){:root{--bg:#0f1513;--card:#192320;--tx:#e8efec;--mu:#9aaba5;--ln:#2a3833;--ok:#3fcf86;--wa:#e0a030;--wn:#f08a4b;--cr:#ef6b6b;--c12:#e0a030;--c36:#3cc5b3;--c48:#9d8cf5;--dk:#e8efec}}
+:root{--bg:#f1f3f2;--card:#fff;--tx:#14201c;--mu:#5d6b66;--ln:#dfe4e2;--ok:#1b8a52;--wa:#b87400;--wn:#d9590b;--cr:#c62f2f;--c12:#b87400;--c36:#0f8577;--c48:#5b45c9;--cct:#c2185b;--dk:#14201c;--lo:#2f6fd6;--hi:#d63c2f}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1513;--card:#192320;--tx:#e8efec;--mu:#9aaba5;--ln:#2a3833;--ok:#3fcf86;--wa:#e0a030;--wn:#f08a4b;--cr:#ef6b6b;--c12:#e0a030;--c36:#3cc5b3;--c48:#9d8cf5;--cct:#f06292;--dk:#e8efec;--lo:#5b9bff;--hi:#ff6b5b}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .w{max-width:1280px;margin:0 auto;padding:20px}
 h1{font-size:24px;margin:0}h2{font-size:15px;margin:0 0 4px}.mu{color:var(--mu)}.sm{font-size:12px}
@@ -23,7 +23,14 @@ h1{font-size:24px;margin:0}h2{font-size:15px;margin:0 0 4px}.mu{color:var(--mu)}
 .bar{height:6px;border-radius:4px;background:var(--ln);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%}
 .m{border-left:3px solid var(--kc);border-radius:8px;background:var(--card);padding:8px 12px}.m b{font-size:22px;display:block}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:top}th{color:var(--mu);font-weight:600;font-size:12px}
-.st{font-weight:700}.Healthy,.healthy{color:var(--ok)}.Watch{color:var(--wa)}.Warning,.warning{color:var(--wn)}.Critical,.critical{color:var(--cr)}
+.st{font-weight:700}.Healthy,.healthy,.Good{color:var(--ok)}.Watch{color:var(--wa)}.Warning,.warning{color:var(--wn)}.Critical,.critical,.Replace{color:var(--cr)}.Unknown{color:var(--mu)}
+tr.rWatch td{background:color-mix(in srgb,var(--wa) 13%,transparent)}tr.rReplace td{background:color-mix(in srgb,var(--cr) 13%,transparent)}
+.ab{font-weight:700;color:var(--cr)}.abw{font-weight:700;color:var(--wa)}
+input[type=range]{accent-color:var(--tx)}
+table.ft td,table.ft th{padding:4px 6px;font-size:12px;white-space:nowrap}td.lo{color:var(--lo);font-weight:700}td.hi{color:var(--hi);font-weight:700}
+tr.pch td{border-top:2px solid var(--mu)}.phs{display:flex;height:16px;border-radius:4px;overflow:hidden;margin:8px 0 2px}.phs i{display:block;height:100%}
+ul.sum{margin:6px 0 0;padding-left:18px}ul.sum li{margin:3px 0}
+@media print{.tabs,#pill,#toasts,.tb,.noprint{display:none!important}.c{break-inside:avoid}body{background:#fff}}
 .chip{border:1px solid var(--ln);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;margin:2px 4px 2px 0;display:inline-block}
 .chip.ok{color:var(--ok)}.chip.off{color:var(--mu)}
 button.b{border:1px solid var(--ln);background:var(--card);color:var(--tx);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
@@ -62,9 +69,11 @@ const CFG={mode:P.get('mode')==='mqtt'?'mqtt':'sim',url:P.get('url')||'ws://loca
 const TH={tWarn:45,tCrit:55,dWarn:50,dCrit:150,cLow:3000,cHigh:3650,socWarn:20,socCrit:10,stale:10};
 const SRC=CFG.mode==='sim'?'sim':'live';
 const RETAIN=7*864e5,SAVE_EVERY=10000;
-const COL={kit12v:'--c12',kit36v:'--c36',kit48v:'--c48'};
+const COL={kit12v:'--c12',kit36v:'--c36',kit48v:'--c48',chargetest12v:'--cct'};
+const NAMES={chargetest12v:'Charge test 12V'};   /* display names; other ids: kit12v -> 12V */
 const hhmmss=d=>new Date(d).toLocaleTimeString('en-GB');
 const f=(v,n=1)=>v==null||isNaN(v)?'n/a':(+v).toFixed(n);
+const ago=t=>{const s=Math.max(0,(Date.now()-t)/1000);return s<90?Math.round(s)+' s':s<5400?Math.round(s/60)+' min':s<172800?Math.round(s/3600)+' h':Math.round(s/86400)+' days'};
 const dur=h=>!isFinite(h)||h<=0?'n/a':h>=1?`${Math.floor(h)} h ${Math.round(h%1*60)} min`:`${Math.round(h*60)} min`;
 let tab='overview',sel=null,conn='idle',K={},ALARMS=[],HIST=[];
 
@@ -88,11 +97,11 @@ async function purge(){await idb;if(!DB)return;
     q.onsuccess=()=>{const c=q.result;if(c){c.delete();c.continue()}}})}
 
 /* ============ state per kit ============ */
-function kit(id){return K[id]||(K[id]={id,label:id.replace('kit','').toUpperCase(),last:null,seen:0,lastTs:0,h:[],eIn:0,eOut:0,ahOut:0,peak:0,tSum:0,tN:0,first:Date.now(),dev:[],n:0,cap:0})}
+function kit(id){return K[id]||(K[id]={id,label:NAMES[id]||id.replace('kit','').toUpperCase(),last:null,seen:0,lastTs:0,h:[],eIn:0,eOut:0,ahOut:0,peak:0,tSum:0,tN:0,first:Date.now(),dev:[],n:0,cap:0})}
 
-function ingest(m){
+function ingest(m,stored=false){
   if(!m||!m.battery_id||!m.pack||!m.cells||!m.temps)return;
-  const k=kit(m.battery_id),p=m.pack,c=m.cells,now=Date.now();
+  const k=kit(m.battery_id),p=m.pack,c=m.cells,now=stored?(Date.parse(m.ts)||Date.now()):Date.now();
   const ts=Date.parse(m.ts)||now;
   if(k.lastTs&&ts>k.lastTs){const dt=Math.min((ts-k.lastTs)/3.6e6,0.1);
     if(p.power_w>0)k.eIn+=p.power_w*dt;else k.eOut+=-p.power_w*dt;
@@ -104,9 +113,18 @@ function ingest(m){
   c.voltages_mv.forEach((v,i)=>k.dev[i]=(k.dev[i]==null?v-avg:k.dev[i]*.97+(v-avg)*.03));
   k.h.push({t:now,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv});
   if(k.h.length>240)k.h.shift();
-  if(now-(k.sv||0)>=SAVE_EVERY){k.sv=now;RB.push({t:now,kit:k.id,label:k.label,src:SRC,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv})}
+  if(!stored&&now-(k.sv||0)>=SAVE_EVERY){k.sv=now;RB.push({t:now,kit:k.id,label:k.label,src:SRC,v:p.voltage_v,i:p.current_a,w:p.power_w,soc:p.soc_pct,T:m.temps.max_c,d:c.delta_mv})}
   if(!sel)sel=k.id;
-  reconcile(k);
+  if(!stored)reconcile(k);
+}
+
+/* ============ stored data from the server (live mode): the page has data even when the board is offline ============ */
+async function backfill(){
+  try{const r=await fetch('api/recent?hours=6&limit=240',{credentials:'same-origin',cache:'no-store'});
+    if(!r.ok)return;const j=await r.json();
+    (j.messages||[]).forEach(m=>ingest(m,true));
+    Object.values(K).forEach(k=>{if(k.h.length)k.first=k.h[0].t});
+    Object.values(K).forEach(reconcile)}catch(e){}
 }
 
 /* ============ health & alarm rules ============ */
@@ -140,10 +158,26 @@ function reconcile(k){
 function health(k){
   const m=k.last;if(!m)return null;
   const d=m.cells.delta_mv,t=m.temps.max_c,fc=(m.faults||[]).length;
-  const pi=Math.min(20,d*.2),pt=Math.min(15,Math.max(0,t-40)),pf=Math.min(20,fc*5),sc=100-pi-pt-pf;
+  const a=HL[k.id],soh=a?a.soh_pct:null,ps=soh==null?0:Math.min(30,Math.max(0,100-soh));
+  const pi=Math.min(20,d*.2),pt=Math.min(15,Math.max(0,t-40)),pf=Math.min(20,fc*5),sc=100-pi-pt-pf-ps;
   const crit=t>55||d>150||sc<50||ALARMS.some(a=>a.kit===k.id&&a.sev==='critical');
-  return{sc,pi,pt,pf,st:crit?'Critical':sc>=85?'Healthy':sc>=70?'Watch':'Warning'};
+  let st=crit?'Critical':sc>=85?'Healthy':sc>=70?'Watch':'Warning';
+  if(a&&a.status==='Replace'&&st==='Healthy')st='Watch';
+  return{sc,pi,pt,pf,ps,soh,st};
 }
+
+/* ============ calculated health and every stored frame (server: api/health, api/frames; method in api/health.py) ============ */
+let HL={};
+const CST={Good:'--ok',Watch:'--wa',Replace:'--cr',Unknown:'--mu'};
+const cellH=(id,n)=>((HL[id]||{}).cell_health||[])[n-1];
+const isAb=c=>c&&(c.status==='Watch'||c.status==='Replace');
+async function loadHealth(){if(CFG.mode!=='mqtt')return;
+  try{const r=await fetch('api/health',{credentials:'same-origin',cache:'no-store'});if(r.ok){HL=(await r.json()).batteries||{};FR.ver++}}catch(e){}}
+const FR={id:null,d:null,i:0,ver:0,drawn:'',busy:false,at:0,play:null,img:null,imgKey:''};
+async function loadFrames(id){if(CFG.mode!=='mqtt'||FR.busy)return;FR.busy=true;
+  try{const r=await fetch('api/frames?battery='+encodeURIComponent(id)+'&hours=6',{credentials:'same-origin',cache:'no-store'});
+    if(r.ok){const d=await r.json(),follow=FR.id!==id||!FR.d||FR.i>=FR.d.n-1;FR.d=d;FR.id=id;if(follow)FR.i=d.n-1;FR.ver++}}catch(e){}
+  FR.at=Date.now();FR.busy=false;render()}
 
 /* ============ notifications ============ */
 function toast(a){
@@ -194,13 +228,14 @@ function connect(){
   cli.on('reconnect',()=>conn='reconnecting');
   cli.on('error',e=>conn='error: '+e.message);
   cli.on('offline',()=>conn='offline');
-  cli.on('message',(t,b)=>{if(!t.endsWith('/telemetry'))return;try{ingest(JSON.parse(b.toString()))}catch(e){}});
+  cli.on('message',(t,b)=>{if(!t.endsWith('/telemetry'))return;try{const m=JSON.parse(b.toString());
+    ingest(m,Date.now()-(Date.parse(m.ts)||Date.now())>60000)}catch(e){}});   /* a backlog upload is old data, not live */
 }
 function start(){
   clearInterval(simTimer);if(cli){try{cli.end(true)}catch(e){}cli=null}
   K={};ALARMS=[];HIST=[];sel=null;
   if(CFG.mode==='sim'){conn='simulator';simInit();for(let i=0;i<20;i++)simTick();simTimer=setInterval(simTick,1000)}
-  else connect();
+  else{conn='loading stored data';backfill().finally(connect);loadHealth()}
 }
 
 /* ============ charts ============ */
@@ -215,45 +250,265 @@ function line(series,H=150){
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 /* ============ views ============ */
-const TABS=[['overview','Overview'],['health','Health Monitoring'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
+const TABS=[['overview','Overview'],['report','Charge Report'],['health','Health Monitoring'],['frames','Cells & Frames'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
 function kitCard(k){
   const m=k.last,h=health(k);if(!m)return`<div class="c kit" style="--kc:var(${COL[k.id]||'--tx'})">${k.label}: waiting…</div>`;
   const s=m.pack.soc_pct;
   return`<div class="c kit ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})">
   <b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span><br>
-  <span class="st ${h.st}">${h.st}</span> at ${f(s,0)}% SoC, ${m.pack.state}
+  <span class="st ${h.st}">${h.st}</span> at ${f(s,0)}% SoC, ${m.pack.state}${Date.now()-k.seen>TH.stale*1000?`<br><span class="sm Watch">Offline, last data ${ago(k.seen)} ago</span>`:''}
   <div class="bar"><i style="width:${s}%;background:var(${COL[k.id]||'--tx'})"></i></div></div>`}
 function vOverview(){
-  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet. In live mode, check the CONFIG block at the top of the script and that the gateway is publishing.</div>';
+  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet: nothing stored on the server and no live readings. Check that the gateway is publishing.</div>';
   const k=K[sel]||ks[0],m=k.last;if(!m)return'';
+  const old=ks.filter(x=>Date.now()-x.seen>TH.stale*1000);
+  const note=old.length?`<div class="c" style="border-left:4px solid var(--wa)"><b>Showing stored data.</b> <span class="mu">No live readings from ${old.map(x=>x.label).join(', ')} right now (last data ${ago(Math.max(...old.map(x=>x.seen)))} ago, ${new Date(Math.max(...old.map(x=>x.seen))).toLocaleString('en-GB')}). Charts show the last readings stored on the server; live readings continue from here when the gateway is back online.</span></div>`:'';
   const p=m.pack,c=m.cells,kc=`var(${COL[k.id]||'--tx'})`,mn=Math.min(...c.voltages_mv),mx=Math.max(...c.voltages_mv);
   const eta=p.current_a<-.5?['Time to empty',dur(p.remaining_ah/-p.current_a)]:p.current_a>.5&&k.cap?['Time to full',dur((k.cap-p.remaining_ah)/p.current_a)]:['Time left','n/a'];
   const met=[['Voltage',f(p.voltage_v,2),'V'],['Current',f(p.current_a,2),'A'],['Power',Math.round(p.power_w),'W'],['Temperature',m.temps.max_c,'°C'],['State of charge',f(p.soc_pct),'%'],['Remaining',f(p.remaining_ah),'Ah'],[eta[0],eta[1],'']]
     .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b>${x[1]} <span class="sm mu">${x[2]}</span></b></div>`).join('');
   const lo=Math.min(2800,mn-50),hi=Math.max(3700,mx+50);
-  const bars=c.voltages_mv.map((v,i)=>{const bal=(c.balancing||[]).includes(i+1),bad=v===mn&&c.delta_mv>TH.dWarn;
-    return`<div title="C${i+1}: ${v} mV" style="height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;background:${bad?css('--cr'):bal?css('--ok'):css('--wa')}"></div>`}).join('');
+  const bars=c.voltages_mv.map((v,i)=>{const bal=(c.balancing||[]).includes(i+1),bad=v===mn&&c.delta_mv>TH.dWarn,hc=cellH(k.id,i+1);
+    return`<div title="C${i+1}: ${v} mV${isAb(hc)?', '+hc.status+': '+hc.reasons.join('; '):''}" style="height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;background:${bad?css('--cr'):bal?css('--ok'):css('--wa')};${isAb(hc)?`outline:3px solid var(${CST[hc.status]});outline-offset:1px`:''}"></div>`}).join('');
+  const abn=((HL[k.id]||{}).cell_health||[]).filter(isAb);
   const chip=(t,on)=>`<span class="chip ${on?'ok':'off'}">${t}: ${on?'on':'off'}</span>`;
-  const rows=ks.map(x=>{const h=health(x),q=x.last;if(!q)return'';return`<tr><td style="color:var(${COL[x.id]||'--tx'})"><b>${x.label}</b></td><td>${x.n}S</td><td>${f(q.pack.soc_pct,0)}%</td><td>${q.pack.cycles}</td><td>${q.cells.delta_mv} mV</td><td>${q.temps.max_c} °C</td><td><b>${f(h.sc)}</b></td><td class="st ${h.st}">${h.st}</td></tr>`}).join('');
-  return`<div class="g g3" style="margin-bottom:12px">${ks.map(kitCard).join('')}</div>
+  const rows=ks.map(x=>{const h=health(x),q=x.last;if(!q)return'';return`<tr><td style="color:var(${COL[x.id]||'--tx'})"><b>${x.label}</b></td><td>${x.n}S</td><td>${f(q.pack.soc_pct,0)}%</td><td>${q.pack.cycles}</td><td>${q.cells.delta_mv} mV</td><td>${q.temps.max_c} °C</td><td>${h.soh==null?'n/a':f(h.soh)+' %'}</td><td><b>${f(h.sc,0)}</b></td><td class="st ${h.st}">${h.st}</td></tr>`}).join('');
+  return`${note}<div class="g g3" style="margin-bottom:12px">${ks.map(kitCard).join('')}</div>
   <div class="g g6" style="margin-bottom:12px">${met}</div>
   <div class="c"><h2>BMS status</h2>${chip('Charge MOS',p.charge_mos)}${chip('Discharge MOS',p.discharge_mos)}${chip('Charger',p.charger_connected)}${chip('Load',p.load_connected)}
-   <div class="sm mu">Balancing cells: ${(c.balancing||[]).length?c.balancing.join(', '):'none'}. Active faults: ${(m.faults||[]).join(', ')||'none'}. Last reading ${Math.round((Date.now()-k.seen)/1000)} s ago${m.seq?`, message #${m.seq}`:''}.</div></div>
+   <div class="sm mu">Balancing cells: ${(c.balancing||[]).length?c.balancing.join(', '):'none'}. Active faults: ${(m.faults||[]).join(', ')||'none'}. Last reading ${ago(k.seen)} ago${m.seq?`, message #${m.seq}`:''}.</div></div>
   <div class="g g2"><div class="c"><h2>Live voltage and current</h2><div class="sm mu">Last ${k.h.length} readings. Positive current means charging.</div>
    ${line([{n:'Voltage V',d:k.h.map(x=>x.v),c:kc},{n:'Current A',d:k.h.map(x=>x.i),c:css('--mu'),dash:1}])}</div>
    <div class="c"><h2>Cell voltages</h2><div class="sm mu">Imbalance <b>${c.delta_mv} mV</b> (flag above ${TH.dWarn}). Green = balancing, red = weakest cell.</div>
-   <div class="cells">${bars}</div><div class="cl">${c.voltages_mv.map((_,i)=>`<span>${i+1}</span>`).join('')}</div></div></div>
+   <div class="cells">${bars}</div><div class="cl">${c.voltages_mv.map((_,i)=>{const hc=cellH(k.id,i+1);return`<span class="${isAb(hc)?(hc.status==='Replace'?'ab':'abw'):''}">${i+1}</span>`}).join('')}</div>
+   ${abn.length?`<div class="sm" style="margin-top:6px">Abnormal cells (outlined): ${abn.map(x=>`<span class="${x.status==='Replace'?'ab':'abw'}">C${x.cell} ${x.status}</span> (${x.reasons.join('; ')})`).join(', ')}. See Health Monitoring and Cells &amp; Frames.</div>`:''}</div></div>
   <div class="g g2"><div class="c"><h2>State of charge &amp; temperature</h2>${line([{n:'SoC %',d:k.h.map(x=>x.soc),c:kc,min:0,max:100,dp:1},{n:'Temp °C',d:k.h.map(x=>x.T),c:css('--wn'),dp:1}])}</div>
-   <div class="c"><h2>Pack comparison</h2><table><tr><th>Pack</th><th>Cells</th><th>SoC</th><th>Cycles</th><th>Imbalance</th><th>Temp</th><th>Score</th><th>Status</th></tr>${rows}</table></div></div>
+   <div class="c"><h2>Pack comparison</h2><table><tr><th>Pack</th><th>Cells</th><th>SoC</th><th>Cycles</th><th>Imbalance</th><th>Temp</th><th>SOH</th><th>Score</th><th>Status</th></tr>${rows}</table></div></div>
   <div class="c"><h2>Last MQTT message</h2><pre>${JSON.stringify(m,null,1)}</pre></div>`;
 }
 function vHealth(){
   const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
-  return`<div class="g g3" style="margin-bottom:12px">${ks.map(k=>{const h=health(k),m=k.last,r=(a,b)=>`<tr><td>${a}</td><td style="text-align:right"><b>${f(b)}</b></td></tr>`;
-    return`<div class="c" style="--kc:var(${COL[k.id]||'--tx'})"><b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span>
-    <div style="font-size:46px;font-weight:700;line-height:1.1">${f(h.sc)} <span class="chip ${h.st}">${h.st}</span></div><div class="mu sm">Health score out of 100</div>
-    <table>${r('State of health ,100)}${r('Cell imbalance',-h.pi)}${r('Temperature',-h.pt)}${r('Active faults',-h.pf)}</table>
-<div class="sm mu" style="margin-top:6px">Imbalance ${m.cells.delta_mv} mV, cycles ${m.pack.cycles}, max temp ${m.temps.max_c} °C. Weakest cell: C${m.cells.min_cell}.</div></div>`}).join('')}</div>
+  const cards=`<div class="g g3" style="margin-bottom:12px">${ks.map(k=>{const h=health(k),m=k.last,a=HL[k.id],r=(x,y)=>`<tr><td>${x}</td><td style="text-align:right"><b>${y}</b></td></tr>`;
+    return`<div class="c kit ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})"><b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span>
+    <div style="font-size:46px;font-weight:700;line-height:1.1">${f(h.sc,0)} <span class="chip ${h.st}">${h.st}</span></div><div class="mu sm">Health score out of 100</div>
+    <table>${r('State of health (SOH)',h.soh==null?'n/a':f(h.soh)+' %')}${r('SOH penalty',f(-h.ps))}${r('Cell imbalance',f(-h.pi))}${r('Temperature',f(-h.pt))}${r('Active faults',f(-h.pf))}${r('Cells to check',a&&a.abnormal_cells&&a.abnormal_cells.length?`<span class="ab">${a.abnormal_cells.map(c=>'C'+c).join(', ')}</span>`:'none')}</table>
+<div class="sm mu" style="margin-top:6px">Imbalance ${m.cells.delta_mv} mV, cycles ${m.pack.cycles}, max temp ${m.temps.max_c} °C. Click a kit for its cell details.</div></div>`}).join('')}</div>`;
+  const k=K[sel]||ks[0],a=HL[k.id];
+  if(CFG.mode!=='mqtt')return cards+'<div class="c mu">Cell internal resistance and SOH are calculated on the server from the stored readings: open the live dashboard to see them.</div>';
+  if(!a||!a.readings)return cards+`<div class="c mu">No stored readings for ${k.label} yet.</div>`;
+  return cards+healthDetail(k,a);
+}
+function healthDetail(k,a){
+  const kc=`var(${COL[k.id]||'--tx'})`,ir=a.ir||{},cs=a.cell_health||[],tm=t=>new Date(t*1000).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  const met=[['State of health',a.soh_pct!=null?f(a.soh_pct):'n/a','%'],['Pack capacity',a.pack_capacity_ah!=null?f(a.pack_capacity_ah):'n/a',`Ah of ${f(a.rated_ah,0)} rated`],
+    ['SOH if bad cells replaced',a.soh_if_replaced_pct!=null?f(a.soh_if_replaced_pct):'n/a','%'],['Cell IR, median',ir.median_mohm!=null?f(ir.median_mohm,2):'n/a','mΩ'],
+    ['IR vs a new cell',ir.rise_vs_new_pct!=null?(ir.rise_vs_new_pct>0?'+':'')+ir.rise_vs_new_pct:'n/a',ir.new_cell_ref_mohm?`% (new ≈ ${f(ir.new_cell_ref_mohm,2)} mΩ)`:''],
+    ['Pack status',`<span class="${a.status}">${a.status}</span>`,'']]
+    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b>${x[1]} <span class="sm mu">${x[2]}</span></b></div>`).join('');
+  const irMax=Math.max(.001,...cs.map(c=>c.ir_mohm||0)),capMax=Math.max(1,a.rated_ah||0,...cs.map(c=>c.capacity_ah||0));
+  const bar=(v,mx,st)=>v==null?'':`<span class="bar" style="width:70px;display:inline-block;vertical-align:middle;margin:0 0 0 6px"><i style="width:${Math.max(3,v/mx*100)}%;background:var(${CST[st]})"></i></span>`;
+  const rows=cs.map(c=>`<tr class="r${c.status}"><td><b>C${c.cell}</b></td><td class="st ${c.status}">${c.status}</td><td>${c.voltage_mv} mV</td>
+    <td>${c.ir_mohm==null?'n/a':f(c.ir_mohm,2)+' mΩ'}${bar(c.ir_mohm,irMax,c.status)}</td><td>${c.ir_vs_others==null?'':f(c.ir_vs_others,2)+'×'}</td>
+    <td>${c.capacity_ah==null?'n/a':f(c.capacity_ah,1)+' Ah'}${bar(c.capacity_ah,capMax,c.status)}</td><td>${c.soh_pct==null?'n/a':f(c.soh_pct)+' %'}</td>
+    <td>${c.balance_s==null?'n/a':Math.round(c.balance_s/60)+' min'}</td><td>${c.knee_rank??'–'}</td><td class="sm">${c.reasons.join('; ')||'–'}</td></tr>`).join('');
+  const ab=new Set(a.abnormal_cells||[]),ev=(a.ir_events||[]).slice().reverse().slice(0,12);
+  const evRows=ev.map(e=>`<tr><td>${tm(e.t)}</td><td>${e.kind}</td><td>${f(e.from_a,1)} → ${f(e.to_a,1)} A</td><td>${f(e.soc,0)} %</td><td class="${e.quality==='good'?'Good':'Unknown'}">${e.quality==='good'?'used':'too small'}</td>
+    ${e.cells_mohm.map((v,j)=>`<td class="${ab.has(j+1)?(cellH(k.id,j+1).status==='Replace'?'ab':'abw'):''}">${f(v,2)}</td>`).join('')}</tr>`).join('');
+  const chRows=(a.charges||[]).slice().reverse().map(c=>`<tr><td>${tm(c.start)}</td><td>${dur(c.duration_s/3600)}</td><td>${f(c.ah_in,1)} Ah / ${f(c.wh_in/1000,2)} kWh</td><td>${f(c.start_soc,0)} → ${f(c.end_soc,0)} %</td>
+    <td>${Math.round(c.rest_before_s/60)} min</td><td>${c.pauses.length?c.pauses.map(p=>Math.round(p.s/60*10)/10+' min').join(', '):'none'}</td><td>${c.temp_start_c} → ${c.temp_max_c} °C</td><td>${c.max_delta_mv} mV</td>
+    <td>${c.ended}</td><td class="sm">${c.cell_capacity_ah?'<span class="Good">capacity measured</span>':c.capacity_note||''}</td></tr>`).join('');
+  return`<div class="c" style="border-left:4px solid ${kc}"><h2>${k.label}: cell health</h2><div class="sm mu">Calculated on the server from ${a.readings} stored readings (${tm(a.from)} to ${tm(a.to)}).${ir.note?' IR: '+ir.note+'.':''}</div></div>
+  <div class="g g6" style="margin-bottom:12px">${met}</div>
+  <div class="c"><h2>Every cell</h2><div class="sm mu">Highlighted rows are abnormal cells. IR = internal resistance (10-second DC), compared with the other cells of this pack. Capacity from the last full charge. Balancing = minutes the BMS bled that cell in the last charge. Full order = which cell reached 3.45 V first (the fullest or weakest cell is first).</div>
+   <table><tr><th>Cell</th><th>Status</th><th>Voltage now</th><th>Internal resistance</th><th>vs others</th><th>Capacity</th><th>Cell SOH</th><th>Balancing</th><th>Full order</th><th>Why</th></tr>${rows}</table></div>
+  <div class="g g2"><div class="c"><h2>IR measurements</h2><div class="sm mu">At every current step: IR = change in cell voltage ÷ change in current. Steps of 10 A or more are used.</div>
+   <table><tr><th>Time</th><th>Event</th><th>Current</th><th>SoC</th><th></th>${cs.map(c=>`<th>C${c.cell} mΩ</th>`).join('')}</tr>${evRows||`<tr><td colspan="${5+cs.length}" class="mu">No current step of 4 A or more in the stored readings yet.</td></tr>`}</table></div>
+   <div class="c"><h2>How SOH is calculated</h2><div class="sm">Charge counted in (Ah) during a charge that runs until the charger finishes. Each cell's start SoC comes from its rested voltage before the charge (needs ${'≥'} 5 min rest and a start below about 30 % SoC, where the LiFePO4 curve is steep).
+   Cell capacity = Ah in ÷ (1 − start SoC). Pack capacity = the weakest cell, because it limits the series pack. <b>SOH = pack capacity ÷ rated capacity</b> (${f(a.rated_ah,0)} Ah, the value set in the BMS).</div>
+   <div class="sm mu" style="margin-top:8px">Cell status: Watch at 1.25× the other cells' IR or below 95 % of their capacity, Replace at 1.5× or below 85 %. IR flags need 2 good current steps.</div></div></div>
+  <div class="c"><h2>Charges</h2><table><tr><th>Start</th><th>Duration</th><th>Charged in</th><th>SoC</th><th>Rest before</th><th>Pauses</th><th>Temperature</th><th>Max imbalance</th><th>Ended</th><th>Capacity</th></tr>${chRows||'<tr><td colspan="10" class="mu">No charge in the stored readings.</td></tr>'}</table></div>`;
+}
+
+/* ---- cells & frames tab: every stored reading, one by one, and a map of all of them ---- */
+function vFrames(){
+  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet.</div>';
+  const k=K[sel]||ks[0];
+  const pick=`<div class="tb">${ks.map(x=>`<button class="b ${x.id===k.id?'p':''}" data-a="sel" data-k="${x.id}">${x.label}</button>`).join('')}</div>`;
+  if(CFG.mode!=='mqtt')return pick+'<div class="c mu">Frames are the readings stored on the server: open the live dashboard to see them.</div>';
+  if(FR.id!==k.id||!FR.d){if(!FR.busy)setTimeout(()=>loadFrames(k.id));return pick+'<div class="c mu">Loading readings…</div>'}
+  const d=FR.d;if(!d.n)return pick+'<div class="c mu">No stored readings for this kit.</div>';
+  const n=d.cells[d.n-1].length,ab=((HL[k.id]||{}).cell_health||[]).filter(isAb);
+  return pick+`<div class="c"><h2>Frame viewer: ${k.label}</h2><div class="sm mu">One frame = one reading from the BMS (every 10 s): ${d.n} frames from ${new Date(d.t[0]).toLocaleString('en-GB')} to ${new Date(d.t[d.n-1]).toLocaleString('en-GB')}. Slider, buttons or ← → keys (Shift = 10 min).</div>
+   <div class="tb" style="margin:8px 0 4px"><button class="b" data-a="fr" data-s="-1e9">⏮ Start</button><button class="b" data-a="fr" data-s="-60">−10 min</button><button class="b" data-a="fr" data-s="-1">◀ Frame</button><button class="b p" data-a="fplay">${FR.play?'⏸ Pause':'▶ Play'}</button><button class="b" data-a="fr" data-s="1">Frame ▶</button><button class="b" data-a="fr" data-s="60">+10 min</button><button class="b" data-a="fr" data-s="1e9">End ⏭</button></div>
+   <input type="range" id="fslider" min="0" max="${d.n-1}" value="${FR.i}" style="padding:0;border:0">
+   <div id="fview"></div>
+   ${ab.length?`<div class="sm" style="margin-top:6px">Outlined cells are abnormal: ${ab.map(c=>`<span class="${c.status==='Replace'?'ab':'abw'}">C${c.cell} ${c.status}</span> (${c.reasons.join('; ')})`).join(', ')}. Details in Health Monitoring.</div>`:''}</div>
+   <div class="c"><h2>Cell map: every frame</h2><div class="sm mu">Rows = cells, columns = frames (time →). Colour = that cell's voltage minus the pack average in the frame: <b style="color:var(--lo)">blue below</b>, <b style="color:var(--hi)">red above</b> (±40 mV = full colour). <b style="color:var(--ok)">Green mark</b> = BMS balancing that cell. Bottom strip: current (grey) and SoC. The vertical line is the selected frame; click to jump.</div>
+   <canvas id="heat" style="width:100%;height:${Math.min(22*n+56,440)}px;display:block;margin-top:8px;cursor:crosshair"></canvas>
+   <div id="fbal" class="sm" style="margin-top:6px"></div></div>`;
+}
+function showFrame(){
+  const d=FR.d,el=$('#fview');if(!d||!d.n||!el)return;
+  const i=FR.i=Math.max(0,Math.min(d.n-1,Math.round(FR.i))),cells=d.cells[i]||[],bal=d.bal[i]||[];
+  const sl=$('#fslider');if(sl&&+sl.value!==i)sl.value=i;
+  const mn=Math.min(...cells),mx=Math.max(...cells),avg=cells.reduce((p,q)=>p+q,0)/(cells.length||1),lo=mn-Math.max(40,(mx-mn)*.6),hi=Math.max(mx,mn+60)+5;
+  const bars=cells.map((v,j)=>{const c=cellH(FR.id,j+1),b=bal.includes(j+1),o=isAb(c)?`outline:3px solid var(${CST[c.status]});outline-offset:1px;`:'';
+    return`<div style="flex:1;min-width:16px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
+     <span style="font-size:11px;font-weight:600">${v}</span><span style="font-size:10px" class="mu">${v-avg>=0?'+':''}${Math.round(v-avg)}</span>
+     <div title="C${j+1}: ${v} mV${b?', balancing':''}${isAb(c)?', '+c.status+': '+c.reasons.join('; '):''}" style="flex:none;width:100%;height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;border-radius:3px 3px 0 0;${o}background:${b?'var(--ok)':v===mn?'var(--lo)':v===mx?'var(--hi)':'var(--mu)'}"></div></div>`}).join('');
+  const lab=cells.map((_,j)=>{const c=cellH(FR.id,j+1),b=bal.includes(j+1);return`<span class="${isAb(c)?(c.status==='Replace'?'ab':'abw'):''}">C${j+1}${b?'<br><b style="color:var(--ok)">bal</b>':''}</span>`}).join('');
+  const it=(l,v)=>`<div class="m" style="--kc:var(${COL[FR.id]||'--tx'})"><span class="mu sm">${l}</span><b style="font-size:18px">${v}</b></div>`;
+  el.innerHTML=`<div class="g g6" style="margin:8px 0">${it('Frame',`${i+1} / ${d.n}`)}${it('Time',new Date(d.t[i]).toLocaleTimeString('en-GB'))}${it('Current',f(d.i[i],1)+' A')}${it('Voltage',f(d.v[i],1)+' V')}${it('SoC',f(d.soc[i],1)+' %')}${it('Temperature',(d.temp[i]??'n/a')+' °C')}${it('Imbalance',(mx-mn)+' mV')}${it('Balancing',bal.length?bal.map(c=>'C'+c).join(', '):'none')}</div>
+   <div class="cells" style="height:170px;margin-top:30px">${bars}</div><div class="cl" style="font-size:11px">${lab}</div>
+   <div class="sm mu">Bar height is zoomed to this frame (bottom = ${Math.round(lo)} mV) so small differences show. Blue = lowest cell, red = highest, green = balancing; small number = mV above/below the pack average.</div>`;
+  drawHeat();
+}
+function drawHeat(){
+  const cv=$('#heat'),d=FR.d;if(!cv||!d||!d.n)return;
+  const W=cv.clientWidth,H=cv.clientHeight,dpr=window.devicePixelRatio||1,n=d.cells[d.n-1].length,L=40,R=6,T=4,S=34,cw=W-L-R,rh=(H-T-S-8)/n;
+  if(!W||!H||!n)return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const key=FR.ver+'/'+W+'/'+H+'/'+FR.id;
+  if(FR.imgKey!==key){
+    const off=document.createElement('canvas');off.width=cv.width;off.height=cv.height;const g=off.getContext('2d');g.scale(dpr,dpr);
+    const hex=v=>{const h=css(v).replace('#','');return[0,2,4].map(k=>parseInt(h.slice(k,k+2),16))},C0=hex('--card'),CL=hex('--lo'),CH=hex('--hi');
+    const mix=(a,b,t)=>`rgb(${a.map((x,k)=>Math.round(x+(b[k]-x)*t)).join(',')})`;
+    const cols=Math.max(1,Math.min(d.n,Math.floor(cw))),bw=cw/cols,balC=css('--ok');
+    for(let c=0;c<cols;c++){const a=Math.floor(c*d.n/cols),b=Math.max(a+1,Math.floor((c+1)*d.n/cols)),m=Math.floor((a+b)/2),cl=d.cells[m]||[];
+      const avg=cl.reduce((p,q)=>p+q,0)/(cl.length||1),bs=new Set();for(let x=a;x<b;x++)(d.bal[x]||[]).forEach(z=>bs.add(z));
+      for(let j=0;j<n;j++){const dv=(cl[j]??avg)-avg,t=Math.min(1,Math.abs(dv)/40);g.fillStyle=mix(C0,dv<0?CL:CH,t);g.fillRect(L+c*bw,T+j*rh,bw+.6,rh-1);
+        if(bs.has(j+1)){g.fillStyle=balC;g.fillRect(L+c*bw,T+j*rh+rh*.38,bw+.6,Math.max(2,rh*.24))}}}
+    g.font='11px system-ui';g.textBaseline='middle';
+    for(let j=0;j<n;j++){const c=cellH(FR.id,j+1);g.fillStyle=isAb(c)?css(CST[c.status]):css('--mu');g.font=(isAb(c)?'bold ':'')+'11px system-ui';g.fillText('C'+(j+1),4,T+j*rh+rh/2)}
+    const y0=T+n*rh+4,sh=S-14,imax=Math.max(1,...d.i.map(Math.abs));g.lineWidth=1.2;
+    const trace=(arr,mn,mx,col)=>{g.strokeStyle=col;g.beginPath();arr.forEach((v,x)=>{const X=L+(x+.5)/d.n*cw,Y=y0+sh-((v??mn)-mn)/((mx-mn)||1)*sh;x?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke()};
+    trace(d.i,-imax,imax,css('--mu'));trace(d.soc,0,100,css(COL[FR.id]||'--tx'));
+    g.fillStyle=css('--mu');g.font='10px system-ui';g.textBaseline='alphabetic';
+    [0,.25,.5,.75,1].forEach(p=>{const x=Math.min(d.n-1,Math.floor(p*(d.n-1))),X=L+p*cw;g.textAlign=p===0?'left':p===1?'right':'center';g.fillText(new Date(d.t[x]).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),X,H-2)});
+    FR.img=off;FR.imgKey=key;
+    cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left;if(x<L)return;FR.i=Math.floor((x-L)/cw*d.n);showFrame()};
+    const secs=d.n>1?(d.t[d.n-1]-d.t[0])/1000/(d.n-1):10,tot=Array(n).fill(0);let first=null;
+    d.bal.forEach((b,x)=>(b||[]).forEach(z=>{tot[z-1]+=secs;if(first==null)first=x}));
+    const fb=$('#fbal');if(fb)fb.innerHTML=`<b>Balancing in this window:</b> ${tot.map((s,j)=>`C${j+1} ${Math.round(s/60)} min`).join(', ')}${first!=null?`. First balancing at ${new Date(d.t[first]).toLocaleTimeString('en-GB')} (frame ${first+1}).`:'. No balancing.'}`;
+  }
+  const g=cv.getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cv.width,cv.height);g.drawImage(FR.img,0,0);g.scale(dpr,dpr);
+  const X=L+(FR.i+.5)/d.n*cw;g.strokeStyle=css('--tx');g.lineWidth=2;g.beginPath();g.moveTo(X,T-2);g.lineTo(X,T+n*rh+S-8);g.stroke();
+}
+function framePlay(){
+  if(FR.play){clearInterval(FR.play);FR.play=null;return}
+  if(!FR.d)return;if(FR.i>=FR.d.n-1)FR.i=0;
+  FR.play=setInterval(()=>{FR.i+=Math.max(1,Math.round(FR.d.n/600));if(FR.i>=FR.d.n-1){FR.i=FR.d.n-1;clearInterval(FR.play);FR.play=null;render()}showFrame()},50);
+}
+/* ---- charge report: what happened over the whole window, then every frame, 100 per page ---- */
+const RP={page:0,id:null,per:100,drawn:'',scroll:false};
+const PH_COL={Rest:'--mu',CC:'--ok',CV:'--wa',Pause:'--lo',Discharge:'--wn'};
+const PH_TXT={Rest:'Rest (no current)',CC:'Constant current (CC)',CV:'Constant voltage (CV), current tapering',Pause:'Charger paused',Discharge:'Discharge'};
+const CELLC=['#0f8577','#5b45c9','#b87400','#2f6fd6','#8a5a44','#4a7c59','#9b4f96','#6d7f8c','#a0522d','#3d6b9e','#7c8a2e','#b0457a','#287d8e','#8c6d1f','#5d5fa8','#6a8f5a'];
+function framePhases(d){
+  const imax=Math.max(0,...d.i),vmax=Math.max(...d.v);
+  const ph=d.i.map((I,x)=>I<-1?'Discharge':I<1?'Rest':(d.v[x]>=vmax-0.15&&I<0.9*imax?'CV':'CC'));
+  let last=-1;   /* a short rest between two charging frames is a pause */
+  for(let x=0;x<ph.length;x++)if(ph[x]==='CC'||ph[x]==='CV'){if(last>=0&&x-last>1&&(d.t[x]-d.t[last])/1000<=1800)for(let y=last+1;y<x;y++)ph[y]='Pause';last=x}
+  const seg=[];ph.forEach((p,x)=>{const g=seg[seg.length-1];if(g&&g.p===p)g.b=x;else seg.push({p,a:x,b:x})});
+  return{ph,seg};
+}
+function reportStats(d){
+  const n=d.n,nc=(d.cells[n-1]||[]).length,step=x=>x&&(d.t[x]-d.t[x-1])/1000<=60?(d.t[x]-d.t[x-1])/1000:0;
+  let ah=0,wh=0,dMax=-1,dMaxAt=0;
+  const cs=[...Array(nc)].map((_,j)=>({cell:j+1,start:d.cells[0][j],end:d.cells[n-1][j],min:1e9,max:-1,tmin:0,tmax:0,below:0,above:0,low:0,high:0,bal:0,firstBal:null}));
+  for(let x=0;x<n;x++){const s=step(x),c=d.cells[x]||[];
+    if(s){const I=(d.i[x]+d.i[x-1])/2;if(I>0){ah+=I*s/3600;wh+=(d.i[x]*d.v[x]+d.i[x-1]*d.v[x-1])/2*s/3600}}
+    if(!c.length)continue;const avg=c.reduce((p,q)=>p+q,0)/c.length,mn=Math.min(...c),mx=Math.max(...c);
+    if(mx-mn>dMax){dMax=mx-mn;dMaxAt=x}
+    c.forEach((v,j)=>{const z=cs[j];if(!z)return;if(v<z.min){z.min=v;z.tmin=x}if(v>z.max){z.max=v;z.tmax=x}
+      z.below=Math.min(z.below,v-avg);z.above=Math.max(z.above,v-avg);if(v===mn)z.low+=s;if(v===mx)z.high+=s});
+    (d.bal[x]||[]).forEach(k=>{const z=cs[k-1];if(z){z.bal+=s;if(z.firstBal==null)z.firstBal=x}})}
+  const al={},order=[];let prev=new Set();
+  (d.faults||[]).forEach((fl,x)=>{const cur=new Set(fl||[]);
+    cur.forEach(k=>{if(!prev.has(k)){(al[k]=al[k]||[]).push({a:x,b:null});order.push(k)}});
+    prev.forEach(k=>{if(!cur.has(k)){const r=al[k][al[k].length-1];r.b=x}});prev=cur});
+  const ti=d.temp.filter(t=>t!=null);
+  return{ah,wh,cs,dMax,dMaxAt,al,alOrder:[...new Set(order)],imax:Math.max(...d.i),vmin:Math.min(...d.v),vmax:Math.max(...d.v),tmin:Math.min(...ti),tmax:Math.max(...ti)};
+}
+function vReport(){
+  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet.</div>';
+  const k=K[sel]||ks[0];
+  const pick=`<div class="tb">${ks.map(x=>`<button class="b ${x.id===k.id?'p':''}" data-a="sel" data-k="${x.id}">${x.label}</button>`).join('')}<button class="b" data-a="print">Print / save as PDF</button></div>`;
+  if(CFG.mode!=='mqtt')return pick+'<div class="c mu">The report is built from the readings stored on the server: open the live dashboard.</div>';
+  if(FR.id!==k.id||!FR.d){if(!FR.busy)setTimeout(()=>loadFrames(k.id));return pick+'<div class="c mu">Loading readings…</div>'}
+  const d=FR.d;if(!d.n)return pick+'<div class="c mu">No stored readings for this kit.</div>';
+  if(RP.id!==k.id){RP.id=k.id;RP.page=0}
+  const {ph,seg}=framePhases(d),S=reportStats(d),a=HL[k.id]||{},nc=S.cs.length,kc=`var(${COL[k.id]||'--tx'})`;
+  const T=x=>new Date(d.t[x]).toLocaleTimeString('en-GB'),Tm=x=>new Date(d.t[x]).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const sec=(x,y)=>(d.t[y]-d.t[x])/1000+10,span=sec(0,d.n-1),hh=s=>s<30?'0 min':dur(s/3600);
+  const tot=p=>seg.filter(g=>g.p===p).reduce((q,g)=>q+sec(g.a,g.b),0);
+  const chg=ph.map((p,x)=>p==='CC'||p==='CV'?x:-1).filter(x=>x>=0),c0=chg[0],c1=chg[chg.length-1];
+  const hc=j=>((a.cell_health||[])[j])||null,abn=(a.cell_health||[]).filter(isAb);
+  const lastS=(a.charges||[]).slice(-1)[0];
+  /* ---- summary in words ---- */
+  const said=[];
+  if(chg.length)said.push(`Charged from <b>${f(d.soc[Math.max(0,c0-1)],0)} %</b> to <b>${f(d.soc[d.n-1],0)} %</b> in <b>${hh(sec(c0,c1))}</b>: ${f(S.ah,1)} Ah (${f(S.wh/1000,2)} kWh) in, at up to ${f(S.imax,1)} A.`);
+  else said.push('No charging in this window.');
+  const pz=seg.filter(g=>g.p==='Pause');
+  if(chg.length)said.push(`Constant current ${hh(tot('CC'))}, constant voltage (taper) ${hh(tot('CV'))}${pz.length?`, ${pz.length} charger pause${pz.length>1?'s':''} (${pz.map(g=>`${hh(sec(g.a,g.b))} at ${f(d.soc[g.a],0)} %`).join(', ')})`:''}. Rest ${hh(tot('Rest'))}.`);
+  said.push(`Pack voltage ${f(d.v[0],1)} V at the start, peak ${f(S.vmax,1)} V, ${f(d.v[d.n-1],1)} V at the end.`);
+  said.push(`Temperature ${d.temp[0]} → ${S.tmax} °C (rise ${S.tmax-d.temp[0]} °C)${S.tmax<45?', well inside the limits':''}.`);
+  const dc=d.cells[S.dMaxAt]||[],dhi=dc.indexOf(Math.max(...dc))+1,dlo=dc.indexOf(Math.min(...dc))+1;
+  said.push(`Largest cell imbalance <b>${S.dMax} mV</b> at ${T(S.dMaxAt)} (${ph[S.dMaxAt]}): C${dhi} highest, C${dlo} lowest. At the end: ${Math.max(...d.cells[d.n-1])-Math.min(...d.cells[d.n-1])} mV.`);
+  const bl=S.cs.filter(z=>z.bal>0).sort((x,y)=>y.bal-x.bal);
+  said.push(bl.length?`BMS balancing: ${bl.map(z=>`C${z.cell} ${Math.round(z.bal/60)} min`).join(', ')} (first at ${T(Math.min(...bl.map(z=>z.firstBal)))}).`:'The BMS did not balance any cell.');
+  said.push(S.alOrder.length?`BMS alarms: ${S.alOrder.map(kk=>S.al[kk].map(r=>`<b>${kk.replace(/_/g,' ')}</b> ${T(r.a)}${r.b!=null?' → '+T(r.b):' (still on)'}`).join(', ')).join('; ')}.`:'No BMS alarms.');
+  if(a.soh_pct!=null)said.push(`Health: <b>SOH ${f(a.soh_pct)} %</b> (pack capacity ${f(a.pack_capacity_ah)} Ah of ${f(a.rated_ah,0)} Ah).${abn.length?' '+abn.map(c=>`<span class="${c.status==='Replace'?'ab':'abw'}">C${c.cell} ${c.status}</span>: ${c.reasons.join('; ')}`).join('. ')+'.':' All cells normal.'}`);
+  else if(a.status)said.push(`Health: ${a.status==='Unknown'?'not enough data for SOH yet':a.status}.`);
+  const met=[['Duration',hh(span)],['SoC',`${f(d.soc[0],0)} → ${f(d.soc[d.n-1],0)} %`],['Charged in',`${f(S.ah,1)} Ah`],['Energy in',`${f(S.wh/1000,2)} kWh`],['Peak current',`${f(S.imax,1)} A`],['Voltage',`${f(d.v[0],1)} → ${f(d.v[d.n-1],1)} V`],
+    ['Temperature',`${d.temp[0]} → ${S.tmax} °C`],['Max imbalance',`${S.dMax} mV`],['SOH',a.soh_pct!=null?f(a.soh_pct)+' %':'n/a'],['Cells to check',abn.length?abn.map(c=>'C'+c.cell).join(', '):'none'],['BMS alarms',S.alOrder.length],['Frames',d.n]]
+    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b style="font-size:18px">${x[1]}</b></div>`).join('');
+  const strip=`<div class="phs">${seg.map(g=>`<i title="${g.p}: ${T(g.a)} – ${T(g.b)}" style="width:${sec(g.a,g.b)/span*100}%;background:var(${PH_COL[g.p]})"></i>`).join('')}</div>
+   <div class="sm mu" style="display:flex;justify-content:space-between"><span>${Tm(0)}</span><span>${Tm(Math.floor(d.n/2))}</span><span>${Tm(d.n-1)}</span></div>`;
+  const legend=Object.keys(PH_COL).filter(p=>ph.includes(p)).map(p=>`<span class="sm"><span style="color:var(${PH_COL[p]})">■</span> ${p}</span>`).join(' &nbsp; ');
+  const segRows=seg.map(g=>{const I=d.i.slice(g.a,g.b+1);return`<tr><td><span style="color:var(${PH_COL[g.p]})">■</span> ${PH_TXT[g.p]}</td><td>${T(g.a)}</td><td>${T(g.b)}</td><td>${hh(sec(g.a,g.b))}</td><td>${f(d.soc[g.a],0)} → ${f(d.soc[g.b],0)} %</td><td>${f(Math.min(...I),1)} … ${f(Math.max(...I),1)} A</td><td>${f(d.v[g.a],1)} → ${f(d.v[g.b],1)} V</td><td>${d.temp[g.a]} → ${d.temp[g.b]} °C</td><td>${g.b-g.a+1}</td></tr>`}).join('');
+  /* ---- charts over the whole window ---- */
+  const idx=[...Array(Math.min(d.n,600))].map((_,q)=>Math.round(q*(d.n-1)/Math.max(1,Math.min(d.n,600)-1))),pick2=arr=>idx.map(x=>arr[x]);
+  const ccol=j=>{const c=hc(j);return isAb(c)?css(CST[c.status]):CELLC[j%CELLC.length]};
+  const allC=idx.flatMap(x=>d.cells[x]||[]),cLo=Math.min(...allC),cHi=Math.max(...allC);
+  const cellSeries=S.cs.map((z,j)=>({n:'C'+(j+1),d:idx.map(x=>(d.cells[x]||[])[j]),c:ccol(j),min:cLo,max:cHi,dp:0}));
+  const devAll=idx.map(x=>{const c=d.cells[x]||[],m=c.reduce((p,q)=>p+q,0)/(c.length||1);return c.map(v=>v-m)}),dLo=Math.min(...devAll.flat()),dHi=Math.max(...devAll.flat());
+  const devSeries=S.cs.map((z,j)=>({n:'C'+(j+1),d:devAll.map(r=>r[j]),c:ccol(j),min:dLo,max:dHi,dp:0}));
+  const axis=`<div class="sm mu" style="display:flex;justify-content:space-between"><span>${Tm(0)}</span><span>${Tm(Math.floor(d.n/2))}</span><span>${Tm(d.n-1)}</span></div>`;
+  const ch=(t,sub,ser,H=170)=>`<div class="c"><h2>${t}</h2><div class="sm mu">${sub}</div>${strip.split('</div>')[0]}</div>${line(ser,H)}${axis}</div>`;
+  /* ---- cells ---- */
+  const cellRows=S.cs.map((z,j)=>{const c=hc(j),st=c?c.status:'Unknown';return`<tr class="r${st}"><td><b style="color:${ccol(j)}">C${z.cell}</b></td><td class="st ${st}">${st}</td><td>${z.start}</td><td>${z.end}</td><td>${z.min} <span class="mu">${Tm(z.tmin)}</span></td><td>${z.max} <span class="mu">${Tm(z.tmax)}</span></td>
+    <td>${Math.round(z.below)}</td><td>+${Math.round(z.above)}</td><td>${hh(z.low)}</td><td>${hh(z.high)}</td><td>${Math.round(z.bal/60)} min${z.firstBal!=null?` <span class="mu">from ${Tm(z.firstBal)}</span>`:''}</td>
+    <td>${c&&c.ir_mohm!=null?f(c.ir_mohm,2)+' mΩ':'n/a'}</td><td>${c&&c.capacity_ah!=null?f(c.capacity_ah,1)+' Ah':'n/a'}</td><td class="sm">${c&&c.reasons.length?c.reasons.join('; '):'–'}</td></tr>`}).join('');
+  /* ---- frames, 100 per page ---- */
+  const per=RP.per,pages=Math.ceil(d.n/per),pg=RP.page=Math.max(0,Math.min(RP.page,pages-1)),x0=pg*per,x1=Math.min(d.n,x0+per);
+  const nav=`<div class="tb"><button class="b" data-a="rpg" data-p="0">⏮ First</button><button class="b" data-a="rpg" data-p="${pg-1}">◀ Previous</button>
+   <select data-rp="1">${[...Array(pages)].map((_,q)=>`<option value="${q}" ${q===pg?'selected':''}>Page ${q+1} of ${pages}: frames ${q*per+1}–${Math.min(d.n,(q+1)*per)}, ${Tm(q*per)}–${Tm(Math.min(d.n,(q+1)*per)-1)}</option>`).join('')}</select>
+   <button class="b" data-a="rpg" data-p="${pg+1}">Next ▶</button><button class="b" data-a="rpg" data-p="${pages-1}">Last ⏭</button><button class="b p" data-a="rcsv">Download all ${d.n} frames (CSV)</button></div>`;
+  let rows='';
+  for(let x=x0;x<x1;x++){const c=d.cells[x]||[],mn=Math.min(...c),mx=Math.max(...c),b=d.bal[x]||[];
+    rows+=`<tr class="${x>x0&&ph[x]!==ph[x-1]?'pch':''}"><td>${x+1}</td><td>${T(x)}</td><td><span style="color:var(${PH_COL[ph[x]]})">■</span> ${ph[x]}</td><td>${f(d.i[x],1)}</td><td>${f(d.v[x],1)}</td><td>${f(d.soc[x],1)}</td><td>${d.temp[x]??''}</td>
+     ${c.map((v,j)=>`<td class="${v===mn?'lo':v===mx?'hi':''}" style="${b.includes(j+1)?'background:color-mix(in srgb,var(--ok) 25%,transparent)':''}">${v}</td>`).join('')}<td>${mx-mn}</td><td>${b.map(q=>'C'+q).join(' ')}</td><td class="sm">${(d.faults[x]||[]).join(', ')}</td></tr>`}
+  return pick+`<div class="c" style="border-left:4px solid ${kc}"><h2 style="font-size:19px">Charge report: ${k.label} kit</h2>
+   <div class="mu">${k.n}S LiFePO4${a.rated_ah?`, ${f(a.rated_ah,0)} Ah rated`:''}. ${new Date(d.t[0]).toLocaleString('en-GB')} to ${new Date(d.t[d.n-1]).toLocaleString('en-GB')} (${hh(span)}), ${d.n} frames, one every 10 s.</div>
+   <ul class="sum">${said.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+  <div class="g g6" style="margin-bottom:12px">${met}</div>
+  <div class="c"><h2>Charge phases</h2>${strip}<div style="margin:4px 0 8px">${legend}</div>
+   <table><tr><th>Phase</th><th>From</th><th>To</th><th>Duration</th><th>SoC</th><th>Current</th><th>Voltage</th><th>Temperature</th><th>Frames</th></tr>${segRows}</table></div>
+  <div class="g g2">${ch('Pack voltage and current','Voltage = sum of the cells (1 mV steps; the BMS pack value has 0.1 V steps), kit colour. Current grey, dashed.',[{n:'Voltage V',d:idx.map(x=>(d.cells[x]||[]).reduce((p,q)=>p+q,0)/1000),c:css(COL[k.id]||'--tx'),dp:2},{n:'Current A',d:pick2(d.i),c:css('--mu'),dash:1,dp:1}])}
+   ${ch('State of charge and temperature','SoC from the BMS, highest temperature sensor.',[{n:'SoC %',d:pick2(d.soc),c:css(COL[k.id]||'--tx'),min:0,max:100,dp:0},{n:'Temp °C',d:pick2(d.temp),c:css('--wn'),dp:0}])}</div>
+  <div class="g g2">${ch('Every cell voltage (mV)','Abnormal cells in red / amber.',cellSeries,200)}
+   ${ch('Each cell minus the pack average (mV)','Shows which cell runs high or low, and when. A high-IR cell jumps up whenever current flows; a weak cell is low when empty and first to rise when full.',devSeries,200)}</div>
+  <div class="c"><h2>Cell behaviour over the whole window</h2><div class="sm mu">mV values. "Below / above average" = the furthest the cell was from the pack average. "Time lowest / highest" = how long it was the lowest / highest cell.</div>
+   <table><tr><th>Cell</th><th>Status</th><th>Start</th><th>End</th><th>Lowest</th><th>Highest</th><th>Below avg</th><th>Above avg</th><th>Time lowest</th><th>Time highest</th><th>Balancing</th><th>IR</th><th>Capacity</th><th>Why</th></tr>${cellRows}</table></div>
+  <div class="c" id="rpf"><h2>All frames</h2><div class="sm mu">Every reading, ${per} per page. <b style="color:var(--lo)">Blue</b> = lowest cell, <b style="color:var(--hi)">red</b> = highest cell in that frame, green background = BMS balancing that cell. A line marks a change of phase.</div>
+   ${nav}<table class="ft"><tr><th>#</th><th>Time</th><th>Phase</th><th>Current A</th><th>Voltage V</th><th>SoC %</th><th>Temp °C</th>${S.cs.map((z,j)=>`<th style="color:${ccol(j)}">C${z.cell} mV</th>`).join('')}<th>Δ mV</th><th>Balancing</th><th>BMS alarms</th></tr>${rows}</table>${nav}</div>`;
+}
+function reportCsv(){
+  const d=FR.d;if(!d)return;const {ph}=framePhases(d),nc=(d.cells[d.n-1]||[]).length;
+  const r=[['frame','time','phase','current_a','voltage_v','soc_pct','temp_c',...[...Array(nc)].map((_,j)=>`cell${j+1}_mv`),'delta_mv','balancing','bms_alarms'].join(',')];
+  for(let x=0;x<d.n;x++){const c=d.cells[x]||[];r.push([x+1,new Date(d.t[x]).toISOString(),ph[x],d.i[x],d.v[x],d.soc[x],d.temp[x],...c,c.length?Math.max(...c)-Math.min(...c):'',(d.bal[x]||[]).map(q=>'C'+q).join(' '),(d.faults[x]||[]).join(' ')].join(','))}
+  const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download=`charge-report-${FR.id}.csv`;l.click();
 }
 function vAlerts(){
   const sev={critical:0,warning:1},al=[...ALARMS].sort((a,b)=>sev[a.sev]-sev[b.sev]||a.since-b.since);
@@ -332,7 +587,7 @@ function vDB(){
   return`<div class="c"><h2>Database</h2><div class="sm mu">Every kit is saved about every ${SAVE_EVERY/1000} s, plus every alarm raised or cleared. Data stays in this browser after you close the page and is deleted after ${RETAIN/864e5} days.</div></div>
   ${tb}<div class="g g6" style="margin-bottom:12px">${stats}</div>
   <div class="c"><h2>Average power in this view</h2><div class="sm mu">Positive = charging, negative = discharging.</div>${ch}</div>
-  <div class="c"><h2>${{summary:,readings:'Latest 100 raw readings',events:'Alarm events (latest 200)'}[dbq.table]}</h2>
+  <div class="c"><h2>${{summary:'Summary (averages)',readings:'Latest 100 raw readings',events:'Alarm events (latest 200)'}[dbq.table]}</h2>
   <table><tr>${head}</tr>${body||`<tr><td colspan="${cols}" class="mu">No data stored for this selection yet.</td></tr>`}</table></div>`;
 }
 
@@ -342,12 +597,26 @@ function render(){
   const live=CFG.mode==='mqtt',ok=live?conn==='connected':true;
   $('#pill').innerHTML=`<span class="pill"><span class="dot ${ok?'on':'bad'}"></span>${live?'Live MQTT: '+conn:'Simulator running'}</span>`;
   if(tab==='db'){if(DBV.drawn===DBV.ver)return;DBV.drawn=DBV.ver}
-  $('#view').innerHTML={overview:vOverview,health:vHealth,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
+  if(tab==='frames'){const key=[FR.ver,sel,!!FR.play,FR.busy,Object.keys(K).length].join('/');if(FR.drawn===key)return;FR.drawn=key}
+  if(tab==='report'){const key=[FR.ver,sel,RP.page,FR.busy,Object.keys(K).length].join('/');if(RP.drawn===key)return;RP.drawn=key}
+  $('#view').innerHTML={overview:vOverview,report:vReport,health:vHealth,frames:vFrames,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
+  if(tab==='frames')showFrame();
+  if(tab==='report'&&RP.scroll){RP.scroll=false;const e=$('#rpf');if(e)e.scrollIntoView()}
 }
 document.addEventListener('change',e=>{const x=e.target.closest('[data-f]');if(x){dbq[x.dataset.f]=x.value;refreshDB()}});
+document.addEventListener('change',e=>{if(e.target.dataset.rp){RP.page=+e.target.value;RP.scroll=true;render()}});
+document.addEventListener('input',e=>{if(e.target.id==='fslider'){FR.i=+e.target.value;showFrame()}});
+document.addEventListener('keydown',e=>{if(tab!=='frames'||!FR.d||!['ArrowLeft','ArrowRight'].includes(e.key)||(e.target.tagName==='INPUT'&&e.target.id!=='fslider'))return;
+  e.preventDefault();FR.i+=(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?60:1);showFrame()});
+addEventListener('resize',()=>{if(tab==='frames')drawHeat()});
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
-  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}}
+  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}if(tab==='frames'){FR.drawn=''}if(tab==='report'){RP.drawn=''}}
+  else if(a==='rpg'){RP.page=+b.dataset.p;RP.scroll=true}
+  else if(a==='rcsv'){reportCsv();return}
+  else if(a==='print'){window.print();return}
+  else if(a==='fr'){FR.i+=+b.dataset.s;showFrame();return}
+  else if(a==='fplay'){framePlay()}
   else if(a==='sel'){sel=b.dataset.k}
   else if(a==='ack'){const x=ALARMS.find(z=>z.kit===b.dataset.k&&z.key===b.dataset.key);if(x)x.ack=true}
   else if(a==='inj'){inject(b.dataset.t,b.dataset.k)}
@@ -361,7 +630,8 @@ document.addEventListener('click',e=>{
   render();
 });
 let tk=0;start();render();purge();
-setInterval(()=>{Object.values(K).forEach(reconcile);tk++;if(tk%2===0)flush();if(tk%600===0)purge();if(tab==='db'&&tk%5===0)refreshDB();render()},1000);
+setInterval(()=>{Object.values(K).forEach(reconcile);tk++;if(tk%2===0)flush();if(tk%600===0)purge();if(tab==='db'&&tk%5===0)refreshDB();
+  if(tk%60===0)loadHealth();if((tab==='frames'||tab==='report')&&FR.id&&!FR.play&&Date.now()-FR.at>60000)loadFrames(FR.id);render()},1000);
 addEventListener('beforeunload',flush);
 </script>
 </body>

@@ -14,6 +14,9 @@ RestartSec=5
 DynamicUser=yes
 SupplementaryGroups=dialout
 StateDirectory=bhm
+# /run/bhm/status.json: live state for the LCD screen (bhm-display) and `status`
+RuntimeDirectory=bhm
+RuntimeDirectoryMode=0755
 # Secrets stay root:root 0600 in /etc/bhm; systemd hands a private copy to the
 # service under $CREDENTIALS_DIRECTORY (referenced from bhm.toml).
 LoadCredential=mqtt_password:/etc/bhm/mqtt_password

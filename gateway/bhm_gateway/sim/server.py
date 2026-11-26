@@ -460,6 +460,22 @@ def _tcp_listener(host: str, port: int) -> socket.socket:
     return s
 
 
+CONTROL_TIMEOUT_S = 5.0   # Windows needs ~2 s just to report "nothing listening" on localhost
+
+
+def control_error(addr: str, e: Exception) -> str:
+    """Why a control connection failed, in words the user can act on."""
+    if isinstance(e, (ConnectionRefusedError, FileNotFoundError)):
+        why = ("nothing is listening there; start the simulator first "
+               "(python -m bhm_gateway sim kit12v kit36v kit48v) and keep its window open")
+    elif isinstance(e, TimeoutError):
+        why = ("no answer; is the simulator running, with this control address? On Windows a "
+               "click inside its window pauses it (title starts with 'Select'): press Esc there")
+    else:
+        why = str(e)
+    return f"simulator not reachable at {addr}: {why}"
+
+
 def connect_control(addr: str, timeout: float | None = None) -> socket.socket:
     """Connect to a simulator control channel: a Unix socket path or tcp:[HOST:]PORT."""
     if is_tcp_addr(addr):
@@ -517,15 +533,14 @@ def main(args) -> int:
 
 def ctl_main(args) -> int:
     try:
-        s = connect_control(args.socket)
+        with connect_control(args.socket, CONTROL_TIMEOUT_S) as s:
+            s.sendall((" ".join(args.words) + "\n").encode())
+            data = b""
+            while chunk := s.recv(65536):
+                data += chunk
     except OSError as e:
-        print(f"simctl: cannot connect to {args.socket}: {e}", file=sys.stderr)
+        print(f"simctl: {control_error(args.socket, e)}", file=sys.stderr)
         return 1
-    with s:
-        s.sendall((" ".join(args.words) + "\n").encode())
-        data = b""
-        while chunk := s.recv(65536):
-            data += chunk
     reply = json.loads(data)
     if "help" in reply:
         print(reply["help"])
