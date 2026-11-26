@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" con tent="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Battery health monitoring system</title>
 <style>
 :root{--bg:#f1f3f2;--card:#fff;--tx:#14201c;--mu:#5d6b66;--ln:#dfe4e2;--ok:#1b8a52;--wa:#b87400;--wn:#d9590b;--cr:#c62f2f;--c12:#b87400;--c36:#0f8577;--c48:#5b45c9;--cct:#c2185b;--dk:#14201c;--lo:#2f6fd6;--hi:#d63c2f}
@@ -45,6 +45,23 @@ label{display:block;font-size:12px;color:var(--mu);margin:8px 0 2px}
 .toast.critical{border-color:var(--cr)}
 .tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.tb select{width:auto}
 pre{background:var(--bg);padding:10px;border-radius:8px;overflow:auto;font-size:12px;max-height:260px}
+
+/* ---- battery packages tab ---- */
+.pk{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-bottom:16px}
+.pkc{position:relative;cursor:pointer;border-radius:18px;padding:16px;background:linear-gradient(145deg,color-mix(in srgb,var(--kc) 18%,var(--card)),var(--card) 70%);border:2px solid transparent;overflow:hidden;transition:transform .15s,box-shadow .15s}
+.pkc:hover{transform:translateY(-2px)}.pkc.sel{border-color:var(--kc);box-shadow:0 8px 28px color-mix(in srgb,var(--kc) 30%,transparent)}
+.pkc .ring{float:right;width:88px;height:88px}
+.pkc .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;clear:both}.pkc .kv span{display:block;font-size:11px;color:var(--mu)}.pkc .kv b{font-size:15px}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:5px;animation:pu 1.4s infinite}.live.off{background:var(--cr);animation:none}
+@keyframes pu{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.live{animation:none}.pkc{transition:none}}
+.seg{display:inline-flex;border:1px solid var(--ln);border-radius:99px;background:var(--card);padding:3px;gap:2px}.seg button{border:0;background:none;color:var(--tx);font:inherit;font-weight:600;padding:5px 14px;border-radius:99px;cursor:pointer}.seg button.on{background:var(--kc,var(--dk));color:#fff}
+.ct{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(124px,1fr))}
+.cell{border-radius:14px;padding:10px 12px;background:var(--bg);border:2px solid var(--ln)}
+.cell .vb{height:52px;border-radius:7px;background:var(--ln);position:relative;overflow:hidden;margin:6px 0}.cell .vb i{position:absolute;left:0;right:0;bottom:0;border-radius:0}
+.ds{max-height:560px;overflow:auto;border:1px solid var(--ln);border-radius:12px}.ds table{min-width:1250px}.ds th{position:sticky;top:0;background:var(--card);z-index:1;white-space:nowrap}.ds td{white-space:nowrap;font-variant-numeric:tabular-nums}
+.ds tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--tx) 3%,transparent)}.ds tr.tot td{font-weight:700;position:sticky;bottom:0;background:var(--card);border-top:2px solid var(--mu)}
+.ib{display:inline-block;height:6px;border-radius:3px;vertical-align:middle;margin-left:6px}
 </style>
 </head>
 <body>
@@ -103,6 +120,7 @@ function ingest(m,stored=false){
   if(!m||!m.battery_id||!m.pack||!m.cells||!m.temps)return;
   const k=kit(m.battery_id),p=m.pack,c=m.cells,now=stored?(Date.parse(m.ts)||Date.now()):Date.now();
   const ts=Date.parse(m.ts)||now;
+  if(!stored)dayAdd(k,m,ts,k.lastTs&&ts>k.lastTs?Math.min((ts-k.lastTs)/3.6e6,0.1):0);
   if(k.lastTs&&ts>k.lastTs){const dt=Math.min((ts-k.lastTs)/3.6e6,0.1);
     if(p.power_w>0)k.eIn+=p.power_w*dt;else k.eOut+=-p.power_w*dt;
     if(p.current_a<0)k.ahOut+=-p.current_a*dt}
@@ -145,7 +163,7 @@ function conds(k){
   (m.faults||[]).forEach(x=>L('warning','bms_'+x,'BMS fault: '+x.replace(/_/g,' '),'The BMS itself reported this fault.','Check the cell/temperature that tripped it.'));
   return o;
 }
-const rec=(now,k,ev,c)=>{HIST.unshift({t:now,kit:k.id,ev,title:c.title,sev:c.sev});AB.push({t:now,kit:k.id,label:k.label,ev,title:c.title,sev:c.sev,src:SRC})};
+const rec=(now,k,ev,c)=>{if(ev==='raised'){const dk=dkey(now),dd=(k.day=k.day||{});(dd[dk]||(dd[dk]=newDay(dk))).alarms++}HIST.unshift({t:now,kit:k.id,ev,title:c.title,sev:c.sev});AB.push({t:now,kit:k.id,label:k.label,ev,title:c.title,sev:c.sev,src:SRC})};
 function reconcile(k){
   const now=Date.now(),cs=conds(k),keys=new Set(cs.map(c=>c.key));
   cs.forEach(c=>{if(!ALARMS.find(a=>a.kit===k.id&&a.key===c.key)){
@@ -250,7 +268,7 @@ function line(series,H=150){
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 /* ============ views ============ */
-const TABS=[['overview','Overview'],['report','Charge Report'],['health','Health Monitoring'],['frames','Cells & Frames'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
+const TABS=[['overview','Overview'],['report','Charge Report'],['packs','Battery Packages'],['alerts','Fault Diagnosis & Alerts'],['perf','Performance Analytics'],['db','Database']];
 function kitCard(k){
   const m=k.last,h=health(k);if(!m)return`<div class="c kit" style="--kc:var(${COL[k.id]||'--tx'})">${k.label}: waiting…</div>`;
   const s=m.pack.soc_pct;
@@ -281,22 +299,10 @@ function vOverview(){
    ${line([{n:'Voltage V',d:k.h.map(x=>x.v),c:kc},{n:'Current A',d:k.h.map(x=>x.i),c:css('--mu'),dash:1}])}</div>
    <div class="c"><h2>Cell voltages</h2><div class="sm mu">Imbalance <b>${c.delta_mv} mV</b> (flag above ${TH.dWarn}). Green = balancing, red = weakest cell.</div>
    <div class="cells">${bars}</div><div class="cl">${c.voltages_mv.map((_,i)=>{const hc=cellH(k.id,i+1);return`<span class="${isAb(hc)?(hc.status==='Replace'?'ab':'abw'):''}">${i+1}</span>`}).join('')}</div>
-   ${abn.length?`<div class="sm" style="margin-top:6px">Abnormal cells (outlined): ${abn.map(x=>`<span class="${x.status==='Replace'?'ab':'abw'}">C${x.cell} ${x.status}</span> (${x.reasons.join('; ')})`).join(', ')}. See Health Monitoring and Cells &amp; Frames.</div>`:''}</div></div>
+   ${abn.length?`<div class="sm" style="margin-top:6px">Abnormal cells (outlined): ${abn.map(x=>`<span class="${x.status==='Replace'?'ab':'abw'}">C${x.cell} ${x.status}</span> (${x.reasons.join('; ')})`).join(', ')}. Open Battery Packages for the full cell details.</div>`:''}</div></div>
   <div class="g g2"><div class="c"><h2>State of charge &amp; temperature</h2>${line([{n:'SoC %',d:k.h.map(x=>x.soc),c:kc,min:0,max:100,dp:1},{n:'Temp °C',d:k.h.map(x=>x.T),c:css('--wn'),dp:1}])}</div>
    <div class="c"><h2>Pack comparison</h2><table><tr><th>Pack</th><th>Cells</th><th>SoC</th><th>Cycles</th><th>Imbalance</th><th>Temp</th><th>SOH</th><th>Score</th><th>Status</th></tr>${rows}</table></div></div>
   <div class="c"><h2>Last MQTT message</h2><pre>${JSON.stringify(m,null,1)}</pre></div>`;
-}
-function vHealth(){
-  const ks=Object.values(K).filter(k=>k.last);if(!ks.length)return'<div class="c mu">No data yet.</div>';
-  const cards=`<div class="g g3" style="margin-bottom:12px">${ks.map(k=>{const h=health(k),m=k.last,a=HL[k.id],r=(x,y)=>`<tr><td>${x}</td><td style="text-align:right"><b>${y}</b></td></tr>`;
-    return`<div class="c kit ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})"><b style="color:var(${COL[k.id]||'--tx'})">${k.label} kit</b> <span class="mu">${k.n}S LiFePO4</span>
-    <div style="font-size:46px;font-weight:700;line-height:1.1">${f(h.sc,0)} <span class="chip ${h.st}">${h.st}</span></div><div class="mu sm">Health score out of 100</div>
-    <table>${r('State of health (SOH)',h.soh==null?'n/a':f(h.soh)+' %')}${r('SOH penalty',f(-h.ps))}${r('Cell imbalance',f(-h.pi))}${r('Temperature',f(-h.pt))}${r('Active faults',f(-h.pf))}${r('Cells to check',a&&a.abnormal_cells&&a.abnormal_cells.length?`<span class="ab">${a.abnormal_cells.map(c=>'C'+c).join(', ')}</span>`:'none')}</table>
-<div class="sm mu" style="margin-top:6px">Imbalance ${m.cells.delta_mv} mV, cycles ${m.pack.cycles}, max temp ${m.temps.max_c} °C. Click a kit for its cell details.</div></div>`}).join('')}</div>`;
-  const k=K[sel]||ks[0],a=HL[k.id];
-  if(CFG.mode!=='mqtt')return cards+'<div class="c mu">Cell internal resistance and SOH are calculated on the server from the stored readings: open the live dashboard to see them.</div>';
-  if(!a||!a.readings)return cards+`<div class="c mu">No stored readings for ${k.label} yet.</div>`;
-  return cards+healthDetail(k,a);
 }
 function healthDetail(k,a){
   const kc=`var(${COL[k.id]||'--tx'})`,ir=a.ir||{},cs=a.cell_health||[],tm=t=>new Date(t*1000).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
@@ -329,76 +335,109 @@ function healthDetail(k,a){
   <div class="c"><h2>Charges</h2><table><tr><th>Start</th><th>Duration</th><th>Charged in</th><th>SoC</th><th>Rest before</th><th>Pauses</th><th>Temperature</th><th>Max imbalance</th><th>Ended</th><th>Capacity</th></tr>${chRows||'<tr><td colspan="10" class="mu">No charge in the stored readings.</td></tr>'}</table></div>`;
 }
 
-/* ---- cells & frames tab: every stored reading, one by one, and a map of all of them ---- */
-function vFrames(){
-  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet.</div>';
-  const k=K[sel]||ks[0];
-  const pick=`<div class="tb">${ks.map(x=>`<button class="b ${x.id===k.id?'p':''}" data-a="sel" data-k="${x.id}">${x.label}</button>`).join('')}</div>`;
-  if(CFG.mode!=='mqtt')return pick+'<div class="c mu">Frames are the readings stored on the server: open the live dashboard to see them.</div>';
-  if(FR.id!==k.id||!FR.d){if(!FR.busy)setTimeout(()=>loadFrames(k.id));return pick+'<div class="c mu">Loading readings…</div>'}
-  const d=FR.d;if(!d.n)return pick+'<div class="c mu">No stored readings for this kit.</div>';
-  const n=d.cells[d.n-1].length,ab=((HL[k.id]||{}).cell_health||[]).filter(isAb);
-  return pick+`<div class="c"><h2>Frame viewer: ${k.label}</h2><div class="sm mu">One frame = one reading from the BMS (every 10 s): ${d.n} frames from ${new Date(d.t[0]).toLocaleString('en-GB')} to ${new Date(d.t[d.n-1]).toLocaleString('en-GB')}. Slider, buttons or ← → keys (Shift = 10 min).</div>
-   <div class="tb" style="margin:8px 0 4px"><button class="b" data-a="fr" data-s="-1e9">⏮ Start</button><button class="b" data-a="fr" data-s="-60">−10 min</button><button class="b" data-a="fr" data-s="-1">◀ Frame</button><button class="b p" data-a="fplay">${FR.play?'⏸ Pause':'▶ Play'}</button><button class="b" data-a="fr" data-s="1">Frame ▶</button><button class="b" data-a="fr" data-s="60">+10 min</button><button class="b" data-a="fr" data-s="1e9">End ⏭</button></div>
-   <input type="range" id="fslider" min="0" max="${d.n-1}" value="${FR.i}" style="padding:0;border:0">
-   <div id="fview"></div>
-   ${ab.length?`<div class="sm" style="margin-top:6px">Outlined cells are abnormal: ${ab.map(c=>`<span class="${c.status==='Replace'?'ab':'abw'}">C${c.cell} ${c.status}</span> (${c.reasons.join('; ')})`).join(', ')}. Details in Health Monitoring.</div>`:''}</div>
-   <div class="c"><h2>Cell map: every frame</h2><div class="sm mu">Rows = cells, columns = frames (time →). Colour = that cell's voltage minus the pack average in the frame: <b style="color:var(--lo)">blue below</b>, <b style="color:var(--hi)">red above</b> (±40 mV = full colour). <b style="color:var(--ok)">Green mark</b> = BMS balancing that cell. Bottom strip: current (grey) and SoC. The vertical line is the selected frame; click to jump.</div>
-   <canvas id="heat" style="width:100%;height:${Math.min(22*n+56,440)}px;display:block;margin-top:8px;cursor:crosshair"></canvas>
-   <div id="fbal" class="sm" style="margin-top:6px"></div></div>`;
-}
-function showFrame(){
-  const d=FR.d,el=$('#fview');if(!d||!d.n||!el)return;
-  const i=FR.i=Math.max(0,Math.min(d.n-1,Math.round(FR.i))),cells=d.cells[i]||[],bal=d.bal[i]||[];
-  const sl=$('#fslider');if(sl&&+sl.value!==i)sl.value=i;
-  const mn=Math.min(...cells),mx=Math.max(...cells),avg=cells.reduce((p,q)=>p+q,0)/(cells.length||1),lo=mn-Math.max(40,(mx-mn)*.6),hi=Math.max(mx,mn+60)+5;
-  const bars=cells.map((v,j)=>{const c=cellH(FR.id,j+1),b=bal.includes(j+1),o=isAb(c)?`outline:3px solid var(${CST[c.status]});outline-offset:1px;`:'';
-    return`<div style="flex:1;min-width:16px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
-     <span style="font-size:11px;font-weight:600">${v}</span><span style="font-size:10px" class="mu">${v-avg>=0?'+':''}${Math.round(v-avg)}</span>
-     <div title="C${j+1}: ${v} mV${b?', balancing':''}${isAb(c)?', '+c.status+': '+c.reasons.join('; '):''}" style="flex:none;width:100%;height:${Math.max(4,(v-lo)/(hi-lo)*100)}%;border-radius:3px 3px 0 0;${o}background:${b?'var(--ok)':v===mn?'var(--lo)':v===mx?'var(--hi)':'var(--mu)'}"></div></div>`}).join('');
-  const lab=cells.map((_,j)=>{const c=cellH(FR.id,j+1),b=bal.includes(j+1);return`<span class="${isAb(c)?(c.status==='Replace'?'ab':'abw'):''}">C${j+1}${b?'<br><b style="color:var(--ok)">bal</b>':''}</span>`}).join('');
-  const it=(l,v)=>`<div class="m" style="--kc:var(${COL[FR.id]||'--tx'})"><span class="mu sm">${l}</span><b style="font-size:18px">${v}</b></div>`;
-  el.innerHTML=`<div class="g g6" style="margin:8px 0">${it('Frame',`${i+1} / ${d.n}`)}${it('Time',new Date(d.t[i]).toLocaleTimeString('en-GB'))}${it('Current',f(d.i[i],1)+' A')}${it('Voltage',f(d.v[i],1)+' V')}${it('SoC',f(d.soc[i],1)+' %')}${it('Temperature',(d.temp[i]??'n/a')+' °C')}${it('Imbalance',(mx-mn)+' mV')}${it('Balancing',bal.length?bal.map(c=>'C'+c).join(', '):'none')}</div>
-   <div class="cells" style="height:170px;margin-top:30px">${bars}</div><div class="cl" style="font-size:11px">${lab}</div>
-   <div class="sm mu">Bar height is zoomed to this frame (bottom = ${Math.round(lo)} mV) so small differences show. Blue = lowest cell, red = highest, green = balancing; small number = mV above/below the pack average.</div>`;
-  drawHeat();
-}
-function drawHeat(){
-  const cv=$('#heat'),d=FR.d;if(!cv||!d||!d.n)return;
-  const W=cv.clientWidth,H=cv.clientHeight,dpr=window.devicePixelRatio||1,n=d.cells[d.n-1].length,L=40,R=6,T=4,S=34,cw=W-L-R,rh=(H-T-S-8)/n;
-  if(!W||!H||!n)return;
-  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
-  const key=FR.ver+'/'+W+'/'+H+'/'+FR.id;
-  if(FR.imgKey!==key){
-    const off=document.createElement('canvas');off.width=cv.width;off.height=cv.height;const g=off.getContext('2d');g.scale(dpr,dpr);
-    const hex=v=>{const h=css(v).replace('#','');return[0,2,4].map(k=>parseInt(h.slice(k,k+2),16))},C0=hex('--card'),CL=hex('--lo'),CH=hex('--hi');
-    const mix=(a,b,t)=>`rgb(${a.map((x,k)=>Math.round(x+(b[k]-x)*t)).join(',')})`;
-    const cols=Math.max(1,Math.min(d.n,Math.floor(cw))),bw=cw/cols,balC=css('--ok');
-    for(let c=0;c<cols;c++){const a=Math.floor(c*d.n/cols),b=Math.max(a+1,Math.floor((c+1)*d.n/cols)),m=Math.floor((a+b)/2),cl=d.cells[m]||[];
-      const avg=cl.reduce((p,q)=>p+q,0)/(cl.length||1),bs=new Set();for(let x=a;x<b;x++)(d.bal[x]||[]).forEach(z=>bs.add(z));
-      for(let j=0;j<n;j++){const dv=(cl[j]??avg)-avg,t=Math.min(1,Math.abs(dv)/40);g.fillStyle=mix(C0,dv<0?CL:CH,t);g.fillRect(L+c*bw,T+j*rh,bw+.6,rh-1);
-        if(bs.has(j+1)){g.fillStyle=balC;g.fillRect(L+c*bw,T+j*rh+rh*.38,bw+.6,Math.max(2,rh*.24))}}}
-    g.font='11px system-ui';g.textBaseline='middle';
-    for(let j=0;j<n;j++){const c=cellH(FR.id,j+1);g.fillStyle=isAb(c)?css(CST[c.status]):css('--mu');g.font=(isAb(c)?'bold ':'')+'11px system-ui';g.fillText('C'+(j+1),4,T+j*rh+rh/2)}
-    const y0=T+n*rh+4,sh=S-14,imax=Math.max(1,...d.i.map(Math.abs));g.lineWidth=1.2;
-    const trace=(arr,mn,mx,col)=>{g.strokeStyle=col;g.beginPath();arr.forEach((v,x)=>{const X=L+(x+.5)/d.n*cw,Y=y0+sh-((v??mn)-mn)/((mx-mn)||1)*sh;x?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke()};
-    trace(d.i,-imax,imax,css('--mu'));trace(d.soc,0,100,css(COL[FR.id]||'--tx'));
-    g.fillStyle=css('--mu');g.font='10px system-ui';g.textBaseline='alphabetic';
-    [0,.25,.5,.75,1].forEach(p=>{const x=Math.min(d.n-1,Math.floor(p*(d.n-1))),X=L+p*cw;g.textAlign=p===0?'left':p===1?'right':'center';g.fillText(new Date(d.t[x]).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),X,H-2)});
-    FR.img=off;FR.imgKey=key;
-    cv.onclick=e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left;if(x<L)return;FR.i=Math.floor((x-L)/cw*d.n);showFrame()};
-    const secs=d.n>1?(d.t[d.n-1]-d.t[0])/1000/(d.n-1):10,tot=Array(n).fill(0);let first=null;
-    d.bal.forEach((b,x)=>(b||[]).forEach(z=>{tot[z-1]+=secs;if(first==null)first=x}));
-    const fb=$('#fbal');if(fb)fb.innerHTML=`<b>Balancing in this window:</b> ${tot.map((s,j)=>`C${j+1} ${Math.round(s/60)} min`).join(', ')}${first!=null?`. First balancing at ${new Date(d.t[first]).toLocaleTimeString('en-GB')} (frame ${first+1}).`:'. No balancing.'}`;
-  }
-  const g=cv.getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,cv.width,cv.height);g.drawImage(FR.img,0,0);g.scale(dpr,dpr);
-  const X=L+(FR.i+.5)/d.n*cw;g.strokeStyle=css('--tx');g.lineWidth=2;g.beginPath();g.moveTo(X,T-2);g.lineTo(X,T+n*rh+S-8);g.stroke();
-}
-function framePlay(){
-  if(FR.play){clearInterval(FR.play);FR.play=null;return}
-  if(!FR.d)return;if(FR.i>=FR.d.n-1)FR.i=0;
-  FR.play=setInterval(()=>{FR.i+=Math.max(1,Math.round(FR.d.n/600));if(FR.i>=FR.d.n-1){FR.i=FR.d.n-1;clearInterval(FR.play);FR.play=null;render()}showFrame()},50);
-}
+/* ============ BATTERY PACKAGES tab: all packs, click one for its cells, health and day/month history ============ */
+const PK={sub:'cells',per:'day',ver:0,hist:{},busy:{},at:{},drawn:''};
+const dkey=t=>{const x=new Date(t);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const newDay=d=>({d,ahIn:0,ahOut:0,whIn:0,whOut:0,pkIn:0,pkOut:0,socMin:101,socMax:-1,socA:null,socB:null,tSum:0,tN:0,tMax:-99,dMax:0,cMin:1e9,cMax:0,sess:0,balS:0,alarms:0,n:0});
+/* live accumulation of today's numbers, added on top of the server snapshot */
+function dayAdd(k,m,ts,dt){if(ts<=(k.snapT||0))return;const p=m.pack,c=m.cells,dk=dkey(ts),dd=k.day=k.day||{},r=dd[dk]||(dd[dk]=newDay(dk));
+  if(p.current_a>0){r.ahIn+=p.current_a*dt;r.whIn+=p.power_w*dt;r.pkIn=Math.max(r.pkIn,p.current_a);if(!k.chg)r.sess++}
+  else if(p.current_a<0){r.ahOut-=p.current_a*dt;r.whOut-=p.power_w*dt;r.pkOut=Math.max(r.pkOut,-p.current_a)}
+  k.chg=p.current_a>1;r.socMin=Math.min(r.socMin,p.soc_pct);r.socMax=Math.max(r.socMax,p.soc_pct);if(r.socA==null)r.socA=p.soc_pct;r.socB=p.soc_pct;
+  r.tSum+=m.temps.max_c;r.tN++;r.tMax=Math.max(r.tMax,m.temps.max_c);r.dMax=Math.max(r.dMax,c.delta_mv);r.cMin=Math.min(r.cMin,c.min_mv);r.cMax=Math.max(r.cMax,c.max_mv);
+  if((c.balancing||[]).length)r.balS+=dt*3600;r.n++}
+function daysFromFrames(d){const R={};let chg=false;
+  for(let x=0;x<d.n;x++){const dk=dkey(d.t[x]),r=R[dk]||(R[dk]=newDay(dk)),I=d.i[x],V=d.v[x],c=d.cells[x]||[],dt=x&&d.t[x]-d.t[x-1]<=60000?(d.t[x]-d.t[x-1])/3.6e6:0;
+    if(I>0){r.ahIn+=I*dt;r.whIn+=I*V*dt;r.pkIn=Math.max(r.pkIn,I);if(!chg)r.sess++}else if(I<0){r.ahOut-=I*dt;r.whOut-=I*V*dt;r.pkOut=Math.max(r.pkOut,-I)}
+    chg=I>1;const s=d.soc[x];r.socMin=Math.min(r.socMin,s);r.socMax=Math.max(r.socMax,s);if(r.socA==null)r.socA=s;r.socB=s;
+    const T=d.temp[x];if(T!=null){r.tSum+=T;r.tN++;r.tMax=Math.max(r.tMax,T)}
+    if(c.length){const mn=Math.min(...c),mx=Math.max(...c);r.dMax=Math.max(r.dMax,mx-mn);r.cMin=Math.min(r.cMin,mn);r.cMax=Math.max(r.cMax,mx)}
+    if((d.bal[x]||[]).length)r.balS+=dt*3600;
+    const fl=d.faults[x]||[],pf=x?d.faults[x-1]||[]:[];fl.forEach(q=>{if(!pf.includes(q))r.alarms++});r.n++}
+  return R}
+function addDay(b,l){if(!l.n)return;['ahIn','ahOut','whIn','whOut','tSum','tN','sess','balS','alarms','n'].forEach(q=>b[q]+=l[q]);
+  ['pkIn','pkOut','socMax','tMax','dMax','cMax'].forEach(q=>b[q]=Math.max(b[q],l[q]));['socMin','cMin'].forEach(q=>b[q]=Math.min(b[q],l[q]));
+  if(b.socA==null)b.socA=l.socA;b.socB=l.socB}
+function packDays(id){const k=K[id]||{},o={...(PK.hist[id]||{})};
+  Object.values(k.day||{}).forEach(l=>{const b=o[l.d]=o[l.d]?{...o[l.d]}:newDay(l.d);addDay(b,l)});
+  return Object.values(o).sort((a,b)=>a.d<b.d?-1:1)}
+function monthsOf(days){const M={};days.forEach(r=>{const mk=r.d.slice(0,7),b=M[mk]||(M[mk]={...newDay(mk),days:0});addDay(b,r);b.days++});return Object.values(M)}
+function simHist(id){const s=SPEC[id],R={};let seed=id.length*7+s.n;const rnd=()=>(seed=(seed*9301+49297)%233280)/233280;
+  for(let q=75;q>=1;q--){const dk=dkey(Date.now()-q*864e5),r=newDay(dk),out=s.cap*(.35+rnd()*.5),inn=out*(1.02+rnd()*.05);
+    Object.assign(r,{ahOut:out,ahIn:inn,whOut:out*s.nom,whIn:inn*s.nom*1.03,pkOut:s.cap*(.2+rnd()*.3),pkIn:s.cap*(.2+rnd()*.15),socMin:8+rnd()*20,socMax:100,socA:30+rnd()*30,socB:90+rnd()*10,tSum:(28+rnd()*8)*100,tN:100,tMax:Math.round(34+rnd()*12),dMax:Math.round(8+rnd()*60),cMin:3050,cMax:3480,sess:1+Math.floor(rnd()*2),balS:rnd()*3000,alarms:rnd()<.12?1:0,n:8640});R[dk]=r}
+  return R}
+/* history: server frames (last 7 days) merged with the days this browser already saved, so months keep growing */
+async function loadHist(id){
+  if(PK.busy[id])return;PK.busy[id]=1;let all={};
+  try{const live=CFG.mode==='mqtt';
+    if(live)try{all=JSON.parse(localStorage.getItem('bhm_days_'+id)||'{}')}catch(e){}
+    let fresh={};
+    if(live){const r=await fetch('api/frames?battery='+encodeURIComponent(id)+'&hours=168',{credentials:'same-origin',cache:'no-store'});
+      if(r.ok){const d=await r.json();if(d.n){fresh=daysFromFrames(d);const f0=Object.keys(fresh).sort()[0];if(all[f0]&&all[f0].n>fresh[f0].n)delete fresh[f0];
+        if(K[id]){K[id].snapT=d.t[d.n-1];K[id].day={}}}}}
+    else fresh=simHist(id);
+    all={...all,...fresh};const keys=Object.keys(all).sort();while(keys.length>800)delete all[keys.shift()];
+    if(live)try{localStorage.setItem('bhm_days_'+id,JSON.stringify(all))}catch(e){}
+  }catch(e){}
+  PK.hist[id]=all;PK.at[id]=Date.now();PK.busy[id]=0;PK.ver++;render()}
+const ring=s=>`<svg class="ring" viewBox="0 0 88 88"><circle cx="44" cy="44" r="36" fill="none" stroke="var(--ln)" stroke-width="9"/><circle cx="44" cy="44" r="36" fill="none" stroke="var(--kc)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${(2.262*Math.max(0,Math.min(100,s))).toFixed(1)} 226.2" transform="rotate(-90 44 44)"/><text x="44" y="50" text-anchor="middle" font-size="20" font-weight="700" fill="var(--tx)">${f(s,0)}%</text></svg>`;
+function packGrid(){return Object.values(K).map(k=>{const m=k.last;if(!m)return'';const p=m.pack,h=health(k),off=Date.now()-k.seen>TH.stale*1000,
+  eta=p.current_a<-.5?'Empty in '+dur(p.remaining_ah/-p.current_a):p.current_a>.5&&k.cap?'Full in '+dur((k.cap-p.remaining_ah)/p.current_a):'Standing by';
+  return`<div class="pkc ${sel===k.id?'sel':''}" data-a="sel" data-k="${k.id}" style="--kc:var(${COL[k.id]||'--tx'})">${ring(p.soc_pct)}
+   <b style="font-size:19px">${k.label}</b><div class="mu sm">${k.n}S LiFePO4, ${f(k.cap||0,0)} Ah</div>
+   <div style="margin-top:6px"><span class="live ${off?'off':''}"></span><b>${off?'Offline':p.state}</b> <span class="chip ${h.st}">${h.st}</span></div><div class="sm mu">${off?'Last data '+ago(k.seen)+' ago':eta}</div>
+   <div class="kv"><div><span>Voltage</span><b>${f(p.voltage_v,1)} V</b></div><div><span>Current</span><b>${f(p.current_a,1)} A</b></div><div><span>Power</span><b>${Math.round(p.power_w)} W</b></div>
+   <div><span>Temperature</span><b>${m.temps.max_c} °C</b></div><div><span>Imbalance</span><b>${m.cells.delta_mv} mV</b></div><div><span>Cycles</span><b>${p.cycles}</b></div></div></div>`}).join('')}
+function cellsView(k){const m=k.last;if(!m)return'';const p=m.pack,c=m.cells,v=c.voltages_mv,avg=v.reduce((a,b)=>a+b,0)/v.length,mn=Math.min(...v),mx=Math.max(...v),bal=c.balancing||[],lo=Math.min(2800,mn-30),hi=Math.max(3650,mx+30),h=health(k),kc=`var(${COL[k.id]||'--tx'})`;
+  const met=[['Pack voltage',f(p.voltage_v,2),'V'],['Current',f(p.current_a,2),'A'],['State of charge',f(p.soc_pct),'%'],['Remaining',f(p.remaining_ah),'Ah'],['Average cell',f(avg,0),'mV'],['Highest cell','C'+c.max_cell+' '+c.max_mv,'mV'],['Lowest cell','C'+c.min_cell+' '+c.min_mv,'mV'],['Imbalance',c.delta_mv,'mV'],['Health score',f(h.sc,0),h.st],['State of health',h.soh==null?'n/a':f(h.soh),'%']]
+    .map(x=>`<div class="m" style="--kc:${kc}"><span class="mu sm">${x[0]}</span><b>${x[1]} <span class="sm mu">${x[2]}</span></b></div>`).join('');
+  const tiles=v.map((x,i)=>{const hc=cellH(k.id,i+1),st=hc?hc.status:'Good',col=st==='Replace'?'--cr':st==='Watch'?'--wa':'--ok',b=bal.includes(i+1),dv=x-avg,weak=x===mn&&c.delta_mv>TH.dWarn;
+    return`<div class="cell" style="border-color:${isAb(hc)?`var(${col})`:'var(--ln)'}" title="${hc&&hc.reasons.length?hc.reasons.join('; '):'Cell '+(i+1)}"><b>C${i+1}</b>${b?' <span class="chip ok" style="margin:0 0 0 4px;padding:0 6px">balancing</span>':''}
+     <div class="vb"><i style="height:${Math.max(4,(x-lo)/(hi-lo)*100)}%;background:var(${weak?'--cr':b?'--ok':col})"></i></div>
+     <b style="font-size:18px">${x}</b> <span class="sm mu">mV</span><div class="sm mu">${dv>=0?'+':''}${Math.round(dv)} vs average</div>
+     <div class="sm ${st}">${st}${hc&&hc.ir_mohm!=null?', '+f(hc.ir_mohm,2)+' mΩ':''}</div></div>`}).join('');
+  const chip=(t,on)=>`<span class="chip ${on?'ok':'off'}">${t}: ${on?'on':'off'}</span>`;
+  return`<div class="g g6" style="margin-bottom:12px">${met}</div>
+  <div class="c"><h2>Cells (${v.length} in series)</h2><div class="sm mu">Bar height is each cell's voltage. Green = balancing, red = weakest cell, amber or red outline = flagged by the health check. Hover a cell for the reason.</div><div class="ct" style="margin-top:10px">${tiles}</div></div>
+  <div class="c"><h2>BMS status</h2>${chip('Charge MOS',p.charge_mos)}${chip('Discharge MOS',p.discharge_mos)}${chip('Charger',p.charger_connected)}${chip('Load',p.load_connected)}
+   <div class="sm mu">Temperature sensors: ${(m.temps.sensors_c||[]).join(', ')} °C. Balancing: ${bal.length?bal.map(q=>'C'+q).join(', '):'none'}. Active faults: ${(m.faults||[]).join(', ')||'none'}. Updated ${ago(k.seen)} ago.</div></div>`}
+function healthView(k){const a=HL[k.id];
+  if(CFG.mode!=='mqtt')return'<div class="c mu">Cell resistance and capacity are calculated on the server: open the live dashboard to see them.</div>';
+  if(!a||!a.readings)return`<div class="c mu">No stored readings for ${k.label} yet.</div>`;return healthDetail(k,a)}
+const HCOLS=['Charged Ah','Charged kWh','Discharged Ah','Discharged kWh','Net Ah','Out/in','SoC start → end','SoC min to max','Peak charge A','Peak discharge A','Avg temp °C','Max temp °C','Max imbalance mV','Charge sessions','Balancing','BMS alarms'];
+function histRows(k){const days=packDays(k.id),M=PK.per==='month';return{M,rows:(M?monthsOf(days):days).slice().reverse()}}
+const histName=(r,M)=>M?new Date(r.d+'-01T12:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'}):new Date(r.d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+function histView(k){
+  const {M,rows}=histRows(k);if(!rows.length)return'<div class="c mu">'+(PK.busy[k.id]?'Loading history…':'No history stored yet. It builds up as readings arrive.')+'</div>';
+  const kc=`var(${COL[k.id]||'--tx'})`,mxA=Math.max(1,...rows.map(r=>Math.max(r.ahIn,r.ahOut))),bar=(v,c)=>`<i class="ib" style="width:${Math.round(v/mxA*60)}px;background:var(${c})"></i>`;
+  const tr=rows.map(r=>{const eff=r.whIn>1?r.whOut/r.whIn*100:null,tA=r.tN?r.tSum/r.tN:null;
+    return`<tr><td><b>${histName(r,M)}</b>${M?` <span class="mu sm">${r.days} days</span>`:''}</td><td>${f(r.ahIn,1)}${bar(r.ahIn,'--ok')}</td><td>${f(r.whIn/1000,2)}</td><td>${f(r.ahOut,1)}${bar(r.ahOut,'--wn')}</td><td>${f(r.whOut/1000,2)}</td><td>${f(r.ahIn-r.ahOut,1)}</td><td>${eff==null?'n/a':f(eff,0)+' %'}</td>
+     <td>${r.socA==null?'n/a':f(r.socA,0)+' → '+f(r.socB,0)+' %'}</td><td>${r.socMin>100?'n/a':f(r.socMin,0)+' to '+f(r.socMax,0)+' %'}</td><td>${f(r.pkIn,1)}</td><td>${f(r.pkOut,1)}</td><td>${tA==null?'n/a':f(tA)}</td>
+     <td class="${r.tMax>=TH.tWarn?'abw':''}">${r.tMax<-90?'n/a':r.tMax}</td><td class="${r.dMax>=TH.dCrit?'ab':r.dMax>=TH.dWarn?'abw':''}">${r.dMax}</td><td>${r.sess}</td><td>${Math.round(r.balS/60)} min</td><td class="${r.alarms?'ab':''}">${r.alarms}</td></tr>`}).join('');
+  const S=q=>rows.reduce((a,r)=>a+r[q],0),Mx=q=>Math.max(...rows.map(r=>r[q])),
+   tot=`<tr class="tot"><td>Total, ${rows.length} ${M?'months':'days'}</td><td>${f(S('ahIn'),1)}</td><td>${f(S('whIn')/1000,2)}</td><td>${f(S('ahOut'),1)}</td><td>${f(S('whOut')/1000,2)}</td><td>${f(S('ahIn')-S('ahOut'),1)}</td><td>${S('whIn')>1?f(S('whOut')/S('whIn')*100,0)+' %':'n/a'}</td><td></td><td></td><td>${f(Mx('pkIn'),1)}</td><td>${f(Mx('pkOut'),1)}</td><td></td><td>${Mx('tMax')<-90?'n/a':Mx('tMax')}</td><td>${Mx('dMax')}</td><td>${S('sess')}</td><td>${Math.round(S('balS')/60)} min</td><td>${S('alarms')}</td></tr>`;
+  const ser=rows.slice(0,M?12:31).reverse(),mc=Math.max(1,...ser.map(r=>Math.max(r.ahIn,r.ahOut))),bw=700/ser.length,step=Math.ceil(ser.length/12);
+  const svg=`<svg viewBox="0 0 700 230"><line x1="0" x2="700" y1="105" y2="105" stroke="var(--ln)"/>${ser.map((r,i)=>{const a=r.ahIn/mc*95,b=r.ahOut/mc*95,x=i*bw+bw*.12;
+    return`<rect x="${x.toFixed(1)}" y="${(105-a).toFixed(1)}" width="${(bw*.76).toFixed(1)}" height="${a.toFixed(1)}" rx="2" fill="var(--ok)"><title>${histName(r,M)}: charged ${f(r.ahIn,1)} Ah</title></rect><rect x="${x.toFixed(1)}" y="105" width="${(bw*.76).toFixed(1)}" height="${b.toFixed(1)}" rx="2" fill="var(--wn)"><title>${histName(r,M)}: discharged ${f(r.ahOut,1)} Ah</title></rect>${i%step===0?`<text x="${(x+bw*.38).toFixed(1)}" y="${M?224:222}" text-anchor="middle" font-size="10" fill="var(--mu)">${M?new Date(r.d+'-01T12:00:00').toLocaleDateString('en-GB',{month:'short'}):r.d.slice(8)}</text>`:''}`}).join('')}</svg>`;
+  const first=rows[rows.length-1],last=rows[0];
+  return`<div class="tb" style="justify-content:space-between"><div class="seg" style="--kc:${kc}">${[['day','Per day'],['month','Per month']].map(([v,l])=>`<button data-a="pper" data-s="${v}" class="${PK.per===v?'on':''}">${l}</button>`).join('')}</div>
+   <div><span class="sm mu"><span class="live"></span>Today updates live. ${M?'':'Showing '+rows.length+' days, '+histName(first,0)+' to '+histName(last,0)+'.'}</span> <button class="b p" data-a="hcsv">Export CSV</button></div></div>
+  <div class="c"><h2>Charge (up) and discharge (down), Ah ${M?'per month':'per day'}</h2><div class="sm mu">Green = energy charged in, orange = energy discharged out. Hover a bar for the value.</div>${svg}</div>
+  <div class="c"><h2>${M?'Monthly':'Daily'} datasheet</h2><div class="sm mu">Newest first. Charge/discharge sums come from the pack's current readings. Days older than the server's 7-day window are kept in this browser once the page has seen them.</div>
+   <div class="ds" style="margin-top:8px"><table><thead><tr><th>${M?'Month':'Date'}</th>${HCOLS.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${tr}</tbody><tfoot>${tot}</tfoot></table></div></div>`}
+function histCsv(){const k=K[sel];if(!k)return;const {M,rows}=histRows(k),r=[[M?'month':'date','charged_ah','charged_kwh','discharged_ah','discharged_kwh','net_ah','efficiency_pct','soc_start','soc_end','soc_min','soc_max','peak_charge_a','peak_discharge_a','avg_temp_c','max_temp_c','max_imbalance_mv','charge_sessions','balancing_min','bms_alarms'].join(',')];
+  rows.forEach(x=>r.push([x.d,f(x.ahIn,2),f(x.whIn/1000,3),f(x.ahOut,2),f(x.whOut/1000,3),f(x.ahIn-x.ahOut,2),x.whIn>1?f(x.whOut/x.whIn*100,1):'',x.socA==null?'':f(x.socA,1),x.socB==null?'':f(x.socB,1),x.socMin>100?'':f(x.socMin,1),f(x.socMax,1),f(x.pkIn,1),f(x.pkOut,1),x.tN?f(x.tSum/x.tN,1):'',x.tMax<-90?'':x.tMax,x.dMax,x.sess,Math.round(x.balS/60),x.alarms].join(',')));
+  const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([r.join('\n')],{type:'text/csv'}));l.download=`${k.id}-${M?'monthly':'daily'}-history.csv`;l.click()}
+function vPacks(){
+  const ks=Object.values(K);if(!ks.length)return'<div class="c mu">No data yet: nothing stored on the server and no live readings.</div>';
+  const k=K[sel]||ks[0],kc=`var(${COL[k.id]||'--tx'})`;
+  if(!PK.hist[k.id]&&!PK.busy[k.id])setTimeout(()=>loadHist(k.id));
+  const body=PK.sub==='history'?histView(k):PK.sub==='health'?healthView(k):cellsView(k),ttl={cells:'live cell status',history:'charge and discharge history',health:'cell health and resistance'}[PK.sub];
+  return`<div id="pkG" class="pk">${packGrid()}</div>
+  <div class="tb" style="justify-content:space-between"><div><h2 style="font-size:20px;color:${kc}">${k.label} kit: ${ttl}</h2><div class="sm mu">Click another package above to switch.</div></div>
+   <div class="seg" style="--kc:${kc}">${[['cells','Cells'],['history','History'],['health','Health and resistance']].map(([v,l])=>`<button data-a="psub" data-s="${v}" class="${PK.sub===v?'on':''}">${l}</button>`).join('')}</div></div>
+  <div id="pkB">${body}</div>`}
+
 /* ---- charge report: what happened over the whole window, then every frame, 100 per page ---- */
 const RP={page:0,id:null,per:100,drawn:'',scroll:false};
 const PH_COL={Rest:'--mu',CC:'--ok',CV:'--wa',Pause:'--lo',Discharge:'--wn'};
@@ -597,26 +636,24 @@ function render(){
   const live=CFG.mode==='mqtt',ok=live?conn==='connected':true;
   $('#pill').innerHTML=`<span class="pill"><span class="dot ${ok?'on':'bad'}"></span>${live?'Live MQTT: '+conn:'Simulator running'}</span>`;
   if(tab==='db'){if(DBV.drawn===DBV.ver)return;DBV.drawn=DBV.ver}
-  if(tab==='frames'){const key=[FR.ver,sel,!!FR.play,FR.busy,Object.keys(K).length].join('/');if(FR.drawn===key)return;FR.drawn=key}
+  if(tab==='packs'){const key=[sel,PK.ver,PK.sub,PK.per,FR.ver,Object.keys(K).length,PK.sub==='history'?Math.floor(Date.now()/5000):0].join('/');
+    if(PK.drawn===key){const g=$('#pkG');if(g){g.innerHTML=packGrid();if(PK.sub==='cells'){const b=$('#pkB');if(b)b.innerHTML=cellsView(K[sel]||Object.values(K)[0])}}return}
+    PK.drawn=key;const ds=$('.ds'),sy=ds?ds.scrollTop:0,sx=ds?ds.scrollLeft:0;$('#view').innerHTML=vPacks();const n=$('.ds');if(n){n.scrollTop=sy;n.scrollLeft=sx}return}
   if(tab==='report'){const key=[FR.ver,sel,RP.page,FR.busy,Object.keys(K).length].join('/');if(RP.drawn===key)return;RP.drawn=key}
-  $('#view').innerHTML={overview:vOverview,report:vReport,health:vHealth,frames:vFrames,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
-  if(tab==='frames')showFrame();
+  $('#view').innerHTML={overview:vOverview,report:vReport,packs:vPacks,alerts:vAlerts,perf:vPerf,db:vDB}[tab]();
   if(tab==='report'&&RP.scroll){RP.scroll=false;const e=$('#rpf');if(e)e.scrollIntoView()}
 }
 document.addEventListener('change',e=>{const x=e.target.closest('[data-f]');if(x){dbq[x.dataset.f]=x.value;refreshDB()}});
 document.addEventListener('change',e=>{if(e.target.dataset.rp){RP.page=+e.target.value;RP.scroll=true;render()}});
-document.addEventListener('input',e=>{if(e.target.id==='fslider'){FR.i=+e.target.value;showFrame()}});
-document.addEventListener('keydown',e=>{if(tab!=='frames'||!FR.d||!['ArrowLeft','ArrowRight'].includes(e.key)||(e.target.tagName==='INPUT'&&e.target.id!=='fslider'))return;
-  e.preventDefault();FR.i+=(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?60:1);showFrame()});
-addEventListener('resize',()=>{if(tab==='frames')drawHeat()});
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;
-  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}if(tab==='frames'){FR.drawn=''}if(tab==='report'){RP.drawn=''}}
+  if(a==='tab'){tab=b.dataset.t;if(tab==='db'){DBV.ver++;refreshDB()}if(tab==='packs'){PK.drawn=''}if(tab==='report'){RP.drawn=''}}
   else if(a==='rpg'){RP.page=+b.dataset.p;RP.scroll=true}
   else if(a==='rcsv'){reportCsv();return}
   else if(a==='print'){window.print();return}
-  else if(a==='fr'){FR.i+=+b.dataset.s;showFrame();return}
-  else if(a==='fplay'){framePlay()}
+  else if(a==='psub'){PK.sub=b.dataset.s}
+  else if(a==='pper'){PK.per=b.dataset.s}
+  else if(a==='hcsv'){histCsv();return}
   else if(a==='sel'){sel=b.dataset.k}
   else if(a==='ack'){const x=ALARMS.find(z=>z.kit===b.dataset.k&&z.key===b.dataset.key);if(x)x.ack=true}
   else if(a==='inj'){inject(b.dataset.t,b.dataset.k)}
@@ -631,7 +668,7 @@ document.addEventListener('click',e=>{
 });
 let tk=0;start();render();purge();
 setInterval(()=>{Object.values(K).forEach(reconcile);tk++;if(tk%2===0)flush();if(tk%600===0)purge();if(tab==='db'&&tk%5===0)refreshDB();
-  if(tk%60===0)loadHealth();if((tab==='frames'||tab==='report')&&FR.id&&!FR.play&&Date.now()-FR.at>60000)loadFrames(FR.id);render()},1000);
+  if(tk%60===0)loadHealth();if(tab==='report'&&FR.id&&!FR.play&&Date.now()-FR.at>60000)loadFrames(FR.id);if(tab==='packs'&&sel&&PK.hist[sel]&&Date.now()-(PK.at[sel]||0)>6e5)loadHist(sel);render()},1000);
 addEventListener('beforeunload',flush);
 </script>
 </body>
