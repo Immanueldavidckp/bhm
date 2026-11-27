@@ -1,0 +1,7 @@
+[Unit]
+Description=BHM auto-deploy: pull main from GitHub, rebuild changed docker services
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/bhm/bin/bhm-deploy.sh

@@ -1,0 +1,73 @@
+# CI for BHM. Runs on every push / pull request to main.
+#
+# CD: the Oracle server (forex-trader) polls main every minute with
+# server-dev/deploy/bhm-deploy.sh. It deploys a new commit only after this
+# workflow has passed for it, so a red X here = the server keeps the old version.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  gateway-tests:
+    name: Gateway tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        working-directory: gateway
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+      - name: pytest
+        working-directory: gateway
+        run: python -m pytest -q
+
+  server-check:
+    name: Server stack check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python syntax (api, ingester)
+        run: python -m py_compile server-dev/api/*.py server-dev/ingester/*.py
+      - name: Dashboard page sanity
+        run: |
+          f=server-dev/dashboard.html
+          test -s "$f"
+          grep -qi '<html' "$f"
+          grep -qi '</html>' "$f"
+          # every <script> block must be valid JavaScript
+          python - <<'EOF'
+          import re, subprocess, sys, tempfile
+          html = open("server-dev/dashboard.html", encoding="utf-8").read()
+          blocks = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S | re.I)
+          bad = 0
+          for i, js in enumerate(blocks):
+              with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as t:
+                  t.write(js)
+              r = subprocess.run(["node", "--check", t.name], capture_output=True, text=True)
+              if r.returncode:
+                  bad += 1
+                  print(f"script block {i}: syntax error\n{r.stderr}")
+          print(f"{len(blocks)} inline script block(s) checked")
+          sys.exit(1 if bad else 0)
+          EOF
+      - name: docker compose config
+        working-directory: server-dev
+        run: |
+          # dummy values: only checks the compose file parses
+          printf 'MYSQL_ROOT_PASSWORD=x\nMYSQL_PASSWORD=x\nDASH_PASSWORD=x\nMQTT_INGEST_PASSWORD=x\n' > .env
+          docker compose config -q
+      - name: Build images
+        working-directory: server-dev
+        run: docker compose build ingester dashboard
